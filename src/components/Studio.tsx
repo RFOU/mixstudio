@@ -12,6 +12,7 @@ import { useAudioStore } from '@/store/audioStore'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { createClient } from '@/lib/supabase/client'
 import { parseAnyLyrics } from '@/lib/lyrics/parseLyrics'
+import { hasCachedAudio } from '@/lib/audio/audioCache'
 import type { Database } from '@/lib/supabase/types'
 
 type Project = Database['public']['Tables']['projects']['Row']
@@ -49,19 +50,32 @@ export function Studio() {
       if (!track.storage_path) continue
 
       try {
-        // Bucket privé → signed URL (valide 1h)
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from('audio-files')
-          .createSignedUrl(track.storage_path, 3600)
+        const cacheHint = track.file_size
+          ? { storagePath: track.storage_path, fileSize: track.file_size }
+          : undefined
 
-        if (signedError || !signedData?.signedUrl) {
-          console.error(`Signed URL ${track.name}:`, signedError?.message)
-          continue
+        // Check cache before generating a signed URL (saves a network round-trip)
+        const isCached = cacheHint ? await hasCachedAudio(cacheHint.storagePath, cacheHint.fileSize) : false
+
+        setLoading(true, isCached
+          ? `Piste ${loaded + 1}/${tracks.length} depuis le cache — ${track.name}`
+          : `Chargement piste ${loaded + 1}/${tracks.length} — ${track.name}`)
+
+        let signedUrl = ''
+        if (!isCached) {
+          // Only generate signed URL when we actually need to fetch from network
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from('audio-files')
+            .createSignedUrl(track.storage_path, 3600)
+
+          if (signedError || !signedData?.signedUrl) {
+            console.error(`Signed URL ${track.name}:`, signedError?.message)
+            continue
+          }
+          signedUrl = signedData.signedUrl
         }
 
-        setLoading(true, `Chargement piste ${loaded + 1}/${tracks.length} — ${track.name}`)
-
-        const buffer = await engine.loadBufferFromUrl(track.id, signedData.signedUrl)
+        const buffer = await engine.loadBufferFromUrl(track.id, signedUrl, cacheHint)
         const waveformData = engine.generateWaveformData(track.id)
 
         addTrack({

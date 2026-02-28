@@ -1,6 +1,7 @@
 'use client'
 
 import { TrackData } from '@/store/audioStore'
+import { getCachedAudio, putCachedAudio } from '@/lib/audio/audioCache'
 
 interface TrackNode {
   id: string
@@ -84,10 +85,36 @@ export class AudioEngine {
     return audioBuffer
   }
 
-  async loadBufferFromUrl(trackId: string, url: string): Promise<AudioBuffer> {
+  async loadBufferFromUrl(
+    trackId: string,
+    url: string,
+    cacheHint?: { storagePath: string; fileSize: number }
+  ): Promise<AudioBuffer> {
     const ctx = this.ensureContext()
-    const response = await fetch(url)
-    const arrayBuffer = await response.arrayBuffer()
+
+    let arrayBuffer: ArrayBuffer | null = null
+
+    // Try cache first if we have metadata to identify the version
+    if (cacheHint) {
+      arrayBuffer = await getCachedAudio(cacheHint.storagePath, cacheHint.fileSize)
+      if (arrayBuffer) {
+        console.debug(`[AudioEngine] Cache hit: ${cacheHint.storagePath}`)
+      }
+    }
+
+    // Fetch from network if not cached
+    if (!arrayBuffer) {
+      console.debug(`[AudioEngine] Cache miss, fetching: ${cacheHint?.storagePath ?? url}`)
+      const response = await fetch(url)
+      arrayBuffer = await response.arrayBuffer()
+
+      // Store in cache for next time
+      if (cacheHint) {
+        putCachedAudio(cacheHint.storagePath, cacheHint.fileSize, arrayBuffer.slice(0))
+          .catch(err => console.warn('[AudioEngine] Cache store failed:', err))
+      }
+    }
+
     const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
     this.audioBuffers.set(trackId, audioBuffer)
 
