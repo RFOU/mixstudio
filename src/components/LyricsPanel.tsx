@@ -26,12 +26,18 @@ export function LyricsPanel() {
     : -1
 
   useEffect(() => {
-    if (activeLyricsRef.current && containerRef.current) {
-      activeLyricsRef.current.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-      })
-    }
+    const container = containerRef.current
+    const activeEl = activeLyricsRef.current
+    if (!container || !activeEl) return
+
+    // Scroll manually within the container to avoid scrolling the whole page
+    const containerTop = container.scrollTop
+    const containerHeight = container.clientHeight
+    const elTop = activeEl.offsetTop
+    const elHeight = activeEl.offsetHeight
+
+    const targetScroll = elTop - containerHeight / 2 + elHeight / 2
+    container.scrollTo({ top: targetScroll, behavior: 'smooth' })
   }, [currentLineIndex])
 
   const handleFileLoad = useCallback(async (file: File) => {
@@ -45,13 +51,22 @@ export function LyricsPanel() {
     })
   }, [setLyrics])
 
-  const handleSeekToLine = useCallback((time: number) => {
-    engine.seekTo(time)
-    setCurrentTime(time)
+  const handleSeekToLine = useCallback((lineTime: number) => {
+    // line.time is raw timestamp from LRC/SRT.
+    // offsetMs shifts when the highlight appears relative to audio time:
+    //   getCurrentLyricsLine does: adjustedTime = currentTime - offsetMs/1000
+    //   so highlight matches line when: currentTime - offsetMs/1000 >= line.time
+    //   i.e. currentTime >= line.time + offsetMs/1000
+    // To seek so that the clicked line starts playing immediately, seek to:
+    //   audioTime = lineTime + offsetMs/1000
+    const offsetSec = (lyrics?.offsetMs ?? 0) / 1000
+    const seekTime = Math.max(0, lineTime + offsetSec)
+    engine.seekTo(seekTime)
+    setCurrentTime(seekTime)
     if (isPlaying) {
-      setTimeout(() => { engine.play(tracks, time) }, 10)
+      setTimeout(() => { engine.play(tracks, seekTime) }, 10)
     }
-  }, [engine, isPlaying, tracks, setCurrentTime])
+  }, [engine, isPlaying, tracks, setCurrentTime, lyrics?.offsetMs])
 
   if (!lyricsVisible) return null
 
@@ -65,6 +80,7 @@ export function LyricsPanel() {
         background: 'var(--surface)',
         borderColor: 'var(--border)',
         flexShrink: 0,
+        overflow: 'hidden',   // bounds the panel height within the flex parent
       }}
     >
       {/* Header */}
