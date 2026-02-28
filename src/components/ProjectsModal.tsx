@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { FolderOpen, Plus, Trash2, Clock, X, Music2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { FolderOpen, Plus, Trash2, Clock, X, Music2, AlertCircle, CheckCircle2, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useAudioStore } from '@/store/audioStore'
@@ -24,82 +24,94 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error' | 'not-logged'>('idle')
   const [saveMessage, setSaveMessage] = useState('')
   const [newProjectName, setNewProjectName] = useState('')
+  const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null)
 
-  const supabase = createClient()
+  // Client stable via ref
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
-  const loadProjects = useCallback(async () => {
-    setLoading(true)
-    const { data, error } = await supabase
+  // Charger l'utilisateur et les projets à l'ouverture
+  useEffect(() => {
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setCurrentUser(user ? { id: user.id, email: user.email } : null)
+
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('updated_at', { ascending: false })
+
+      if (error) console.error('Erreur chargement projets:', error)
+      setProjects(data || [])
+      setLoading(false)
+    }
+    init()
+  }, [supabase])
+
+  const reloadProjects = async () => {
+    const { data } = await supabase
       .from('projects')
       .select('*')
       .order('updated_at', { ascending: false })
-
-    if (error) {
-      console.error('Erreur chargement projets:', error)
-    }
     setProjects(data || [])
-    setLoading(false)
-  }, [supabase])
-
-  useEffect(() => {
-    loadProjects()
-  }, [loadProjects])
+  }
 
   const handleSaveCurrentProject = async () => {
     setSaving(true)
     setSaveStatus('idle')
     setSaveMessage('')
 
-    // 1. Vérifier que l'utilisateur est connecté
-    const { data: userData, error: authError } = await supabase.auth.getUser()
-    if (authError || !userData.user) {
+    // 1. Vérifier connexion
+    if (!currentUser) {
       setSaveStatus('not-logged')
       setSaveMessage('Vous devez être connecté pour sauvegarder.')
       setSaving(false)
       return
     }
 
-    const userId = userData.user.id
-
     try {
-      // 2. Créer le projet en base
+      // 2. Créer le projet en DB
       const { data: proj, error: projError } = await supabase
         .from('projects')
-        .insert({ user_id: userId, name: projectName })
+        .insert({ user_id: currentUser.id, name: projectName })
         .select()
         .single()
 
       if (projError || !proj) {
-        console.error('Erreur création projet:', projError)
         setSaveStatus('error')
-        setSaveMessage(`Erreur création projet : ${projError?.message}`)
+        setSaveMessage(`Erreur DB : ${projError?.message ?? 'réponse vide'}`)
         setSaving(false)
         return
       }
 
-      // 3. Mettre à jour le store avec le nouveau projectId
+      // 3. Mettre à jour le store
       setProject(proj.id, proj.name, proj.bpm)
 
-      // 4. Pour chaque piste : uploader le fichier + enregistrer en DB
+      // 4. Uploader chaque piste
+      let uploadErrors = 0
       for (const track of tracks) {
-        let storagePath = track.storagePath || null
+        let storagePath = track.storagePath ?? null
 
-        // Upload fichier local si pas encore dans le cloud
-        const localFile = getFile(track.id)
-        if (!storagePath && localFile) {
-          const filePath = `${userId}/${proj.id}/${track.id}_${localFile.name}`
-          const { data: storageData, error: storageError } = await supabase.storage
-            .from('audio-files')
-            .upload(filePath, localFile, { upsert: false })
+        // Upload Storage si fichier local disponible
+        if (!storagePath) {
+          const localFile = getFile(track.id)
+          if (localFile) {
+            const filePath = `${currentUser.id}/${proj.id}/${track.id}_${localFile.name}`
+            const { data: storageData, error: storageError } = await supabase.storage
+              .from('audio-files')
+              .upload(filePath, localFile, { upsert: false })
 
-          if (storageError) {
-            console.error(`Erreur upload ${track.name}:`, storageError)
-          } else if (storageData) {
-            storagePath = storageData.path
+            if (storageError) {
+              console.error(`Upload Storage ${track.name}:`, storageError.message)
+              uploadErrors++
+            } else {
+              storagePath = storageData.path
+            }
           }
         }
 
-        // Enregistrer la piste en DB
+        // Insert piste en DB
         const { error: trackError } = await supabase.from('tracks').insert({
           id: track.id,
           project_id: proj.id,
@@ -111,62 +123,66 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
           soloed: track.soloed,
           color: track.color,
           storage_path: storagePath,
-          file_name: track.fileName || null,
-          file_size: track.fileSize || null,
-          duration: track.duration || null,
-          sample_rate: track.sampleRate || null,
+          file_name: track.fileName ?? null,
+          file_size: track.fileSize ?? null,
+          duration: track.duration ?? null,
+          sample_rate: track.sampleRate ?? null,
         })
 
         if (trackError) {
-          console.error(`Erreur sauvegarde piste ${track.name}:`, trackError)
+          console.error(`Insert piste ${track.name}:`, trackError.message)
+          uploadErrors++
         }
       }
 
       setSaveStatus('success')
-      setSaveMessage(`Projet "${proj.name}" sauvegardé avec ${tracks.length} piste(s).`)
-      await loadProjects()
-    } catch (err) {
+      setSaveMessage(
+        uploadErrors > 0
+          ? `Projet sauvegardé avec ${tracks.length - uploadErrors}/${tracks.length} piste(s). ${uploadErrors} erreur(s) d'upload.`
+          : `"${proj.name}" sauvegardé — ${tracks.length} piste(s).`
+      )
+      await reloadProjects()
+    } catch (err: unknown) {
       console.error('Erreur inattendue:', err)
       setSaveStatus('error')
-      setSaveMessage('Erreur inattendue lors de la sauvegarde.')
+      setSaveMessage(`Erreur inattendue : ${err instanceof Error ? err.message : String(err)}`)
     }
 
     setSaving(false)
   }
 
   const handleCreateProject = async () => {
-    const name = newProjectName.trim() || 'Nouveau projet'
-    setSaving(true)
-    const { data: userData } = await supabase.auth.getUser()
-    if (!userData.user) {
+    if (!currentUser) {
       setSaveStatus('not-logged')
       setSaveMessage('Vous devez être connecté.')
-      setSaving(false)
       return
     }
 
-    const { data, error } = await supabase
-      .from('projects')
-      .insert({ user_id: userData.user.id, name })
-      .select()
-      .single()
+    const name = newProjectName.trim() || 'Nouveau projet'
+    setSaving(true)
 
-    if (!error && data) {
-      await loadProjects()
-      setNewProjectName('')
+    const { error } = await supabase
+      .from('projects')
+      .insert({ user_id: currentUser.id, name })
+
+    if (error) {
+      console.error('Erreur création projet:', error.message)
+      setSaveStatus('error')
+      setSaveMessage(`Erreur : ${error.message}`)
     } else {
-      console.error('Erreur création projet vide:', error)
+      setNewProjectName('')
+      await reloadProjects()
     }
     setSaving(false)
   }
 
   const handleDeleteProject = async (id: string) => {
-    if (!confirm('Supprimer ce projet ? Les pistes associées seront aussi supprimées.')) return
+    if (!confirm('Supprimer ce projet ?')) return
     const { error } = await supabase.from('projects').delete().eq('id', id)
     if (error) {
-      console.error('Erreur suppression:', error)
+      console.error('Erreur suppression:', error.message)
     } else {
-      await loadProjects()
+      await reloadProjects()
     }
   }
 
@@ -181,11 +197,9 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
     onClose()
   }
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('fr-FR', {
-      day: 'numeric', month: 'short', year: 'numeric',
-    })
-  }
+  const formatDate = (date: string) => new Date(date).toLocaleDateString('fr-FR', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  })
 
   return (
     <div
@@ -203,14 +217,29 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
             <FolderOpen size={18} style={{ color: 'var(--accent)' }} />
             <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Projets</h2>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X size={16} />
-          </Button>
+          <div className="flex items-center gap-3">
+            {/* Statut connexion */}
+            <span className="text-xs" style={{ color: currentUser ? 'var(--success)' : 'var(--warning)' }}>
+              {currentUser ? `● ${currentUser.email}` : '● Non connecté'}
+            </span>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X size={16} />
+            </Button>
+          </div>
         </div>
 
         <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 64px)' }}>
 
-          {/* Save current session */}
+          {/* Alerte si non connecté */}
+          {!currentUser && (
+            <div className="mx-5 mt-4 p-3 rounded-lg flex items-center gap-2 text-sm"
+              style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.3)' }}>
+              <LogIn size={14} className="flex-shrink-0" />
+              <span>Connectez-vous pour sauvegarder vos projets dans le cloud.</span>
+            </div>
+          )}
+
+          {/* Sauvegarder session courante */}
           {tracks.length > 0 && (
             <div className="px-5 py-4 border-b space-y-2" style={{ borderColor: 'var(--border)' }}>
               <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
@@ -220,49 +249,35 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
                 variant="default"
                 size="sm"
                 onClick={handleSaveCurrentProject}
-                disabled={saving}
+                disabled={saving || !currentUser}
               >
                 {saving ? (
-                  <>
-                    <span
-                      className="inline-block w-3 h-3 rounded-full border border-t-transparent mr-2 animate-spin"
-                      style={{ borderColor: 'white', borderTopColor: 'transparent' }}
-                    />
-                    Sauvegarde en cours...
-                  </>
+                  <span className="flex items-center gap-2">
+                    <span className="inline-block w-3 h-3 rounded-full border-2 border-t-transparent animate-spin"
+                      style={{ borderColor: 'white', borderTopColor: 'transparent' }} />
+                    Sauvegarde...
+                  </span>
                 ) : (
                   `Sauvegarder "${projectName}"`
                 )}
               </Button>
 
-              {/* Feedback message */}
               {saveStatus !== 'idle' && (
-                <div
-                  className="flex items-start gap-2 p-2 rounded text-xs"
+                <div className="flex items-start gap-2 p-2 rounded text-xs"
                   style={{
-                    background: saveStatus === 'success'
-                      ? 'rgba(34,197,94,0.1)'
-                      : saveStatus === 'not-logged'
-                        ? 'rgba(245,158,11,0.1)'
-                        : 'rgba(239,68,68,0.1)',
-                    color: saveStatus === 'success'
-                      ? 'var(--success)'
-                      : saveStatus === 'not-logged'
-                        ? 'var(--warning)'
-                        : 'var(--danger)',
-                  }}
-                >
+                    background: saveStatus === 'success' ? 'rgba(34,197,94,0.1)' : saveStatus === 'not-logged' ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+                    color: saveStatus === 'success' ? 'var(--success)' : saveStatus === 'not-logged' ? 'var(--warning)' : 'var(--danger)',
+                  }}>
                   {saveStatus === 'success'
                     ? <CheckCircle2 size={13} className="flex-shrink-0 mt-0.5" />
-                    : <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-                  }
+                    : <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />}
                   <span>{saveMessage}</span>
                 </div>
               )}
             </div>
           )}
 
-          {/* New empty project */}
+          {/* Nouveau projet vide */}
           <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
             <input
               type="text"
@@ -270,20 +285,16 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
               onChange={(e) => setNewProjectName(e.target.value)}
               placeholder="Nom du nouveau projet vide..."
               className="flex-1 text-sm px-3 py-1.5 rounded border"
-              style={{
-                background: 'var(--surface-2)',
-                borderColor: 'var(--border)',
-                color: 'var(--text)',
-              }}
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
               onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
             />
-            <Button variant="ghost" size="sm" onClick={handleCreateProject} disabled={saving}>
+            <Button variant="ghost" size="sm" onClick={handleCreateProject} disabled={saving || !currentUser}>
               <Plus size={14} className="mr-1" />
               Créer
             </Button>
           </div>
 
-          {/* Projects list */}
+          {/* Liste des projets */}
           <div className="p-3">
             <p className="text-xs font-semibold uppercase tracking-wider px-1 mb-2" style={{ color: 'var(--text-muted)' }}>
               Projets sauvegardés
@@ -296,7 +307,6 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
               <div className="flex flex-col items-center justify-center py-8 gap-2" style={{ color: 'var(--text-muted)' }}>
                 <Music2 size={28} style={{ opacity: 0.3 }} />
                 <p className="text-sm">Aucun projet sauvegardé</p>
-                <p className="text-xs opacity-60">Connectez-vous et sauvegardez votre session</p>
               </div>
             ) : (
               <div className="space-y-1.5">
@@ -309,10 +319,8 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
                     onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--surface-3)' }}
                     onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--surface-2)' }}
                   >
-                    <div
-                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'var(--accent-dim)' }}
-                    >
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'var(--accent-dim)' }}>
                       <Music2 size={14} style={{ color: 'var(--accent)' }} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -329,8 +337,7 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
                     <button
                       onClick={(e) => { e.stopPropagation(); handleDeleteProject(project.id) }}
                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded"
-                      style={{ color: 'var(--danger)' }}
-                    >
+                      style={{ color: 'var(--danger)' }}>
                       <Trash2 size={14} />
                     </button>
                   </div>
