@@ -106,13 +106,29 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
 
       // Sauvegarder les paroles si elles existent
       if (lyrics && currentProjectId) {
-        await supabase.from('lyrics').upsert({
-          project_id: currentProjectId,
-          format: lyrics.format,
-          content: lyrics.rawContent,
-          offset_ms: lyrics.offsetMs,
-          updated_at: new Date().toISOString(),
-        }, { onConflict: 'project_id' })
+        const { data: existingLyrics } = await supabase
+          .from('lyrics')
+          .select('id')
+          .eq('project_id', currentProjectId)
+          .single()
+
+        if (existingLyrics) {
+          await supabase.from('lyrics')
+            .update({
+              format: lyrics.format,
+              content: lyrics.rawContent,
+              offset_ms: lyrics.offsetMs,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', existingLyrics.id)
+        } else {
+          await supabase.from('lyrics').insert({
+            project_id: currentProjectId,
+            format: lyrics.format,
+            content: lyrics.rawContent,
+            offset_ms: lyrics.offsetMs,
+          })
+        }
       }
 
       setSaveStatus('saved')

@@ -23,7 +23,7 @@ export function Studio() {
   const {
     isLoading, loadingMessage, lyricsVisible,
     setProject, addTrack, clearTracks, setDuration,
-    setCurrentTime, setIsPlaying, setLoading, setLyrics,
+    setCurrentTime, setIsPlaying, setLoading, setLyrics, setLyricsVisible,
   } = useAudioStore()
 
   const engine = getAudioEngine()
@@ -104,12 +104,13 @@ export function Studio() {
         offsetMs: lyricsData.offset_ms ?? 0,
         rawContent: lyricsData.content,
       })
+      setLyricsVisible(true)
     } else {
       setLyrics(null)
     }
 
     setLoading(false)
-  }, [engine, supabase, addTrack, clearTracks, setProject, setDuration, setCurrentTime, setIsPlaying, setLoading, setLyrics])
+  }, [engine, supabase, addTrack, clearTracks, setProject, setDuration, setCurrentTime, setIsPlaying, setLoading, setLyrics, setLyricsVisible])
 
   return (
     <div
