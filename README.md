@@ -1,36 +1,97 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MixStudio
 
-## Getting Started
+Player audio multipiste professionnel — Next.js + Supabase.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Frontend** : Next.js 16 (App Router), React, TypeScript, Tailwind CSS
+- **State** : Zustand + Immer
+- **Audio** : Web Audio API (natif navigateur)
+- **Backend** : Supabase (Auth, PostgreSQL, Storage)
+
+## Features
+
+- Import 2–16 pistes audio (MP3, WAV, FLAC, OGG — jusqu'à 300 MB/piste)
+- Player multipiste synchronisé
+- Waveform visuelle par piste
+- Contrôle volume + panoramique par piste
+- Mute / Solo par piste (fade-out 5ms sans clic audio)
+- Boucle précise avec sélection IN/OUT par glisser-déposer (Shift+drag)
+- Presets de boucle nommés
+- Paroles synchronisées (LRC, SRT, TXT plain)
+- Mode karaoké
+- Décalage manuel des paroles (±5 000ms)
+- Auth Supabase (email/password)
+- Sauvegarde cloud des projets et pistes
+- Raccourcis clavier
+- Dark mode studio
+
+## Configuration
+
+### 1. Créer un projet Supabase
+
+Rendez-vous sur [supabase.com](https://supabase.com) et créez un nouveau projet.
+
+### 2. Initialiser la base de données
+
+Dans **SQL Editor** de votre projet, exécutez le contenu du fichier `supabase/schema.sql`.
+
+### 3. Créer le bucket de stockage
+
+Dans **Storage**, créez un bucket nommé `audio-files` :
+- Public : Non (privé)
+- Les policies sont incluses dans le SQL
+
+### 4. Variables d'environnement
+
+Éditez `.env.local` avec vos clés (disponibles dans **Settings → API**) :
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 5. Démarrer
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Ouvrez http://localhost:3000
 
-## Learn More
+## Raccourcis clavier
 
-To learn more about Next.js, take a look at the following resources:
+| Touche | Action |
+|--------|--------|
+| `Espace` | Lecture / Pause |
+| `S` | Stop |
+| `R` / `Home` | Retour au début |
+| `L` | Boucle on/off |
+| `Shift + glisser` sur waveform | Sélectionner région de boucle |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/
+│   ├── page.tsx              # Page principale (Studio)
+│   └── auth/callback/        # Callback OAuth
+├── components/
+│   ├── Studio.tsx            # Layout racine
+│   ├── StudioHeader.tsx      # Barre de menu
+│   ├── Transport.tsx         # Contrôles globaux
+│   ├── MultitrackPanel.tsx   # Zone pistes
+│   ├── TrackRow.tsx          # Une piste
+│   ├── WaveformCanvas.tsx    # Canvas waveform
+│   ├── LoopPanel.tsx         # Boucle + presets
+│   ├── LyricsPanel.tsx       # Paroles
+│   ├── AuthModal.tsx         # Auth
+│   └── ProjectsModal.tsx     # Projets cloud
+├── lib/
+│   ├── audio/AudioEngine.ts  # Web Audio API
+│   ├── lyrics/parseLyrics.ts # Parseur LRC/SRT
+│   └── supabase/             # Clients Supabase
+├── store/audioStore.ts       # Store Zustand
+└── proxy.ts                  # Refresh session
+```
