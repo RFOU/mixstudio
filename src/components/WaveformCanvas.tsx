@@ -43,8 +43,10 @@ export function WaveformCanvas({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const { width } = canvas
-    const h = canvas.height
+    // Use CSS dimensions (logical pixels) for drawing — the ctx.scale(dpr,dpr)
+    // applied in applySize already maps these to physical pixels correctly
+    const width = canvas.offsetWidth
+    const h = canvas.offsetHeight
     const mid = h / 2
 
     ctx.clearRect(0, 0, width, h)
