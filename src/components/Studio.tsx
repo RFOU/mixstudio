@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { Transport } from '@/components/Transport'
 import { MultitrackPanel } from '@/components/MultitrackPanel'
 import { LyricsPanel } from '@/components/LyricsPanel'
@@ -21,83 +21,92 @@ export function Studio() {
   const [showProjects, setShowProjects] = useState(false)
   const {
     isLoading, loadingMessage, lyricsVisible,
-    setProject, addTrack, clearTracks, setDuration, setCurrentTime, setIsPlaying,
+    setProject, addTrack, clearTracks, setDuration,
+    setCurrentTime, setIsPlaying, setLoading,
   } = useAudioStore()
 
   const engine = getAudioEngine()
-  const supabase = createClient()
+  // Client stable via ref
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   const handleLoadProject = useCallback(async (project: Project, tracks: TrackDB[]) => {
-    // Stop playback
+    // Stop playback et reset
     engine.stop()
     setIsPlaying(false)
     setCurrentTime(0)
-
-    // Clear existing
     clearTracks()
     setProject(project.id, project.name, project.bpm)
 
-    // Load tracks from storage
+    if (tracks.length === 0) return
+
+    setLoading(true, `Chargement de "${project.name}"...`)
+
+    let loaded = 0
+
     for (const track of tracks) {
-      if (track.storage_path) {
-        try {
-          const { data } = supabase.storage
-            .from('audio-files')
-            .getPublicUrl(track.storage_path)
+      if (!track.storage_path) continue
 
-          const buffer = await engine.loadBufferFromUrl(track.id, data.publicUrl)
-          const waveformData = engine.generateWaveformData(track.id)
+      try {
+        // Bucket privé → signed URL (valide 1h)
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from('audio-files')
+          .createSignedUrl(track.storage_path, 3600)
 
-          addTrack({
-            id: track.id,
-            name: track.name,
-            position: track.position,
-            volume: track.volume,
-            pan: track.pan,
-            muted: track.muted,
-            soloed: track.soloed,
-            color: track.color,
-            audioBuffer: buffer,
-            waveformData,
-            storagePath: track.storage_path,
-            fileName: track.file_name,
-            fileSize: track.file_size,
-            duration: track.duration,
-            sampleRate: track.sample_rate,
-          })
-        } catch (err) {
-          console.error(`Failed to load track ${track.name}:`, err)
+        if (signedError || !signedData?.signedUrl) {
+          console.error(`Signed URL ${track.name}:`, signedError?.message)
+          continue
         }
+
+        setLoading(true, `Chargement piste ${loaded + 1}/${tracks.length} — ${track.name}`)
+
+        const buffer = await engine.loadBufferFromUrl(track.id, signedData.signedUrl)
+        const waveformData = engine.generateWaveformData(track.id)
+
+        addTrack({
+          id: track.id,
+          name: track.name,
+          position: track.position,
+          volume: track.volume,
+          pan: track.pan,
+          muted: track.muted,
+          soloed: track.soloed,
+          color: track.color,
+          waveformData,
+          storagePath: track.storage_path,
+          fileName: track.file_name,
+          fileSize: track.file_size,
+          duration: track.duration,
+          sampleRate: track.sample_rate,
+        })
+
+        loaded++
+      } catch (err) {
+        console.error(`Erreur chargement piste ${track.name}:`, err)
       }
     }
 
-    const newDuration = engine.getDuration()
-    setDuration(newDuration)
-  }, [engine, supabase, addTrack, clearTracks, setProject, setDuration, setCurrentTime, setIsPlaying])
+    setDuration(engine.getDuration())
+    setLoading(false)
+  }, [engine, supabase, addTrack, clearTracks, setProject, setDuration, setCurrentTime, setIsPlaying, setLoading])
 
   return (
     <div
       className="flex flex-col"
       style={{ height: '100vh', background: 'var(--background)', overflow: 'hidden' }}
     >
-      {/* Top bar */}
       <StudioHeader
         onOpenProjects={() => setShowProjects(true)}
         onOpenAuth={() => setShowAuth(true)}
       />
 
-      {/* Transport */}
       <Transport />
 
-      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Multitrack + Loop */}
         <div className="flex flex-col flex-1 overflow-hidden">
           <MultitrackPanel />
           <LoopPanel />
         </div>
-
-        {/* Lyrics panel */}
         {lyricsVisible && <LyricsPanel />}
       </div>
 
@@ -112,7 +121,7 @@ export function Studio() {
             style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
           >
             <div
-              className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin"
+              className="w-8 h-8 rounded-full border-2 animate-spin"
               style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent' }}
             />
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
@@ -122,7 +131,6 @@ export function Studio() {
         </div>
       )}
 
-      {/* Modals */}
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
       {showProjects && (
         <ProjectsModal

@@ -24,7 +24,8 @@ export function Transport({ onSave }: TransportProps) {
   } = useAudioStore()
 
   const engine = getAudioEngine()
-  const hasAudio = tracks.some(t => t.audioBuffer || t.storagePath)
+  // hasAudio: vérifie le moteur (source de vérité) ET le store comme fallback
+  const hasAudio = tracks.length > 0 && (engine.getDuration() > 0 || tracks.some(t => t.storagePath || t.duration))
 
   // Sync engine events
   useEffect(() => {
