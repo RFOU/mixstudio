@@ -1,12 +1,12 @@
 'use client'
 
 import { useCallback, useRef } from 'react'
-import { Upload, PlusCircle, CloudUpload } from 'lucide-react'
+import { Upload, PlusCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { TrackRow } from '@/components/TrackRow'
 import { useAudioStore } from '@/store/audioStore'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
-import { createClient } from '@/lib/supabase/client'
+import { registerFile, removeFile } from '@/lib/fileRegistry'
 import { formatFileSize } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -20,18 +20,17 @@ const MAX_FILE_SIZE = 300 * 1024 * 1024 // 300 MB
 
 export function MultitrackPanel() {
   const {
-    tracks, projectId, isPlaying,
+    tracks, isPlaying,
     addTrack, removeTrack, setLoading,
     setDuration, setCurrentTime, setIsPlaying,
   } = useAudioStore()
 
   const engine = getAudioEngine()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const isDraggingOver = useRef(false)
 
-  const loadAudioFile = useCallback(async (file: File, uploadToCloud = false) => {
+  const loadAudioFile = useCallback(async (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
-      alert(`Fichier trop grand: ${formatFileSize(file.size)} (max 300 MB)`)
+      alert(`Fichier trop grand : ${formatFileSize(file.size)} (max 300 MB)`)
       return
     }
 
@@ -42,21 +41,8 @@ export function MultitrackPanel() {
       const buffer = await engine.loadBuffer(trackId, file)
       const waveformData = engine.generateWaveformData(trackId)
 
-      // Upload to Supabase Storage if requested
-      let storagePath: string | null = null
-      if (uploadToCloud && projectId) {
-        const supabase = createClient()
-        const { data: userData } = await supabase.auth.getUser()
-        if (userData.user) {
-          const path = `${userData.user.id}/${projectId}/${trackId}_${file.name}`
-          const { data, error } = await supabase.storage
-            .from('audio-files')
-            .upload(path, file, { upsert: false })
-          if (!error && data) {
-            storagePath = data.path
-          }
-        }
-      }
+      // Stocker la référence File dans le registry externe (Immer ne peut pas sérialiser File)
+      registerFile(trackId, file)
 
       const newTrack = {
         id: trackId,
@@ -67,60 +53,55 @@ export function MultitrackPanel() {
         muted: false,
         soloed: false,
         color: TRACK_COLORS[tracks.length % TRACK_COLORS.length],
-        audioBuffer: buffer,
-        localFile: file,
         waveformData,
         fileName: file.name,
         fileSize: file.size,
         duration: buffer.duration,
         sampleRate: buffer.sampleRate,
-        storagePath,
+        storagePath: null,
       }
 
       addTrack(newTrack)
+      setDuration(engine.getDuration())
 
-      const newDuration = engine.getDuration()
-      setDuration(newDuration)
-
-      // Stop and reset playback
       if (isPlaying) {
         engine.stop()
         setIsPlaying(false)
         setCurrentTime(0)
       }
     } catch (err) {
-      console.error('Error loading audio:', err)
+      console.error('Erreur chargement audio:', err)
       alert('Erreur lors du chargement du fichier audio')
     } finally {
       setLoading(false)
     }
-  }, [engine, tracks.length, projectId, isPlaying, addTrack, setLoading, setDuration, setCurrentTime, setIsPlaying])
+  }, [engine, tracks.length, isPlaying, addTrack, setLoading, setDuration, setCurrentTime, setIsPlaying])
 
   const handleFiles = useCallback((files: FileList | File[]) => {
     const fileArray = Array.from(files)
-    const audioFiles = fileArray.filter(f => f.type.startsWith('audio/') || /\.(mp3|wav|flac|ogg|aac|m4a)$/i.test(f.name))
-    audioFiles.forEach(f => loadAudioFile(f, !!projectId))
-  }, [loadAudioFile, projectId])
+    const audioFiles = fileArray.filter(
+      f => f.type.startsWith('audio/') || /\.(mp3|wav|flac|ogg|aac|m4a)$/i.test(f.name)
+    )
+    audioFiles.forEach(f => loadAudioFile(f))
+  }, [loadAudioFile])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    isDraggingOver.current = false
     handleFiles(e.dataTransfer.files)
   }, [handleFiles])
 
   const handleRemoveTrack = useCallback((id: string) => {
     engine.removeTrack(id)
+    removeFile(id)
     removeTrack(id)
-    const newDuration = engine.getDuration()
-    setDuration(newDuration)
+    setDuration(engine.getDuration())
   }, [engine, removeTrack, setDuration])
 
   return (
     <div
       className="flex flex-col flex-1 overflow-hidden"
       style={{ background: 'var(--background)' }}
-      onDragOver={(e) => { e.preventDefault(); isDraggingOver.current = true }}
-      onDragLeave={() => { isDraggingOver.current = false }}
+      onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
     >
       {/* Header */}
@@ -131,27 +112,14 @@ export function MultitrackPanel() {
         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
           Pistes ({tracks.length}/16)
         </span>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost" size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={tracks.length >= 16}
-          >
-            <Upload size={14} className="mr-1" />
-            Importer
-          </Button>
-          {projectId && (
-            <Button
-              variant="ghost" size="sm"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={tracks.length >= 16}
-              title="Importer et sauvegarder dans le cloud"
-            >
-              <CloudUpload size={14} className="mr-1" />
-              Cloud
-            </Button>
-          )}
-        </div>
+        <Button
+          variant="ghost" size="sm"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={tracks.length >= 16}
+        >
+          <Upload size={14} className="mr-1" />
+          Importer
+        </Button>
         <input
           ref={fileInputRef}
           type="file"
@@ -165,32 +133,26 @@ export function MultitrackPanel() {
       {/* Tracks list */}
       <div className="flex-1 overflow-y-auto">
         {tracks.length === 0 ? (
-          <div
-            className="flex flex-col items-center justify-center h-full gap-4 p-8"
-            style={{ color: 'var(--text-muted)' }}
-          >
+          <div className="flex flex-col items-center justify-center h-full gap-4 p-8">
             <div
-              className="border-2 border-dashed rounded-xl p-12 flex flex-col items-center gap-3 w-full max-w-md transition-colors"
+              className="border-2 border-dashed rounded-xl p-12 flex flex-col items-center gap-3 w-full max-w-md"
               style={{ borderColor: 'var(--border)', background: 'var(--surface-2)' }}
             >
               <Upload size={40} style={{ color: 'var(--accent)', opacity: 0.5 }} />
               <p className="text-base font-medium text-center" style={{ color: 'var(--text)' }}>
                 Glissez vos fichiers audio ici
               </p>
-              <p className="text-sm text-center">
+              <p className="text-sm text-center" style={{ color: 'var(--text-muted)' }}>
                 MP3, WAV, FLAC, OGG — jusqu&apos;à 300 MB par piste
               </p>
-              <Button
-                variant="default"
-                onClick={() => fileInputRef.current?.click()}
-              >
+              <Button variant="default" onClick={() => fileInputRef.current?.click()}>
                 <PlusCircle size={16} className="mr-2" />
                 Sélectionner des fichiers
               </Button>
             </div>
           </div>
         ) : (
-          <div className="group">
+          <div>
             {tracks
               .slice()
               .sort((a, b) => a.position - b.position)
