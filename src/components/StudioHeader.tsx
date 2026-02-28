@@ -16,7 +16,7 @@ interface StudioHeaderProps {
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) {
-  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject } = useAudioStore()
+  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject, lyrics } = useAudioStore()
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [saveError, setSaveError] = useState('')
@@ -102,6 +102,17 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
           sample_rate: track.sampleRate ?? null,
           updated_at: new Date().toISOString(),
         }, { onConflict: 'id' })
+      }
+
+      // Sauvegarder les paroles si elles existent
+      if (lyrics && currentProjectId) {
+        await supabase.from('lyrics').upsert({
+          project_id: currentProjectId,
+          format: lyrics.format,
+          content: lyrics.rawContent,
+          offset_ms: lyrics.offsetMs,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'project_id' })
       }
 
       setSaveStatus('saved')

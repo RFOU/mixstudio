@@ -70,16 +70,13 @@ export function Transport({ onSave }: TransportProps) {
   }, [engine, setIsPlaying, setCurrentTime])
 
   const handleReturnToStart = useCallback(() => {
-    const wasPlaying = isPlaying
-    engine.stop()
+    engine.seekTo(0, isPlaying ? tracks : undefined)
     setCurrentTime(0)
-    if (wasPlaying) {
-      setTimeout(() => {
-        engine.play(tracks, 0)
-        setIsPlaying(true)
-      }, 10)
+    if (!isPlaying) {
+      // Also reset internal engine state fully when stopped
+      engine.stop()
     }
-  }, [engine, isPlaying, tracks, setCurrentTime, setIsPlaying])
+  }, [engine, isPlaying, tracks, setCurrentTime])
 
   const handleLoopToggle = useCallback(() => {
     const newEnabled = !loopEnabled
@@ -185,11 +182,8 @@ export function Transport({ onSave }: TransportProps) {
           const rect = e.currentTarget.getBoundingClientRect()
           const ratio = (e.clientX - rect.left) / rect.width
           const newTime = ratio * duration
-          engine.seekTo(newTime)
+          engine.seekTo(newTime, isPlaying ? tracks : undefined)
           setCurrentTime(newTime)
-          if (isPlaying) {
-            setTimeout(() => { engine.play(tracks, newTime); }, 10)
-          }
         }}
       >
         <div

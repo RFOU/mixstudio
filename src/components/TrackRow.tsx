@@ -80,11 +80,8 @@ export function TrackRow({ track, index, onRemove }: TrackRowProps) {
   }, [engine, track, setTrackPan])
 
   const handleSeek = useCallback((time: number) => {
-    engine.seekTo(time)
+    engine.seekTo(time, isPlaying ? tracks : undefined)
     setCurrentTime(time)
-    if (isPlaying) {
-      setTimeout(() => { engine.play(tracks, time) }, 10)
-    }
   }, [engine, isPlaying, tracks, setCurrentTime])
 
   const isAudible = !track.muted && (!hasSolo || track.soloed)

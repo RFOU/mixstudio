@@ -11,6 +11,7 @@ import { ProjectsModal } from '@/components/ProjectsModal'
 import { useAudioStore } from '@/store/audioStore'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { createClient } from '@/lib/supabase/client'
+import { parseAnyLyrics } from '@/lib/lyrics/parseLyrics'
 import type { Database } from '@/lib/supabase/types'
 
 type Project = Database['public']['Tables']['projects']['Row']
@@ -22,7 +23,7 @@ export function Studio() {
   const {
     isLoading, loadingMessage, lyricsVisible,
     setProject, addTrack, clearTracks, setDuration,
-    setCurrentTime, setIsPlaying, setLoading,
+    setCurrentTime, setIsPlaying, setLoading, setLyrics,
   } = useAudioStore()
 
   const engine = getAudioEngine()
@@ -87,8 +88,28 @@ export function Studio() {
     }
 
     setDuration(engine.getDuration())
+
+    // Charger les paroles si elles existent pour ce projet
+    const { data: lyricsData } = await supabase
+      .from('lyrics')
+      .select('*')
+      .eq('project_id', project.id)
+      .single()
+
+    if (lyricsData) {
+      const { lines, format } = parseAnyLyrics(lyricsData.content, lyricsData.format as 'lrc' | 'srt' | 'plain')
+      setLyrics({
+        format,
+        lines,
+        offsetMs: lyricsData.offset_ms ?? 0,
+        rawContent: lyricsData.content,
+      })
+    } else {
+      setLyrics(null)
+    }
+
     setLoading(false)
-  }, [engine, supabase, addTrack, clearTracks, setProject, setDuration, setCurrentTime, setIsPlaying, setLoading])
+  }, [engine, supabase, addTrack, clearTracks, setProject, setDuration, setCurrentTime, setIsPlaying, setLoading, setLyrics])
 
   return (
     <div

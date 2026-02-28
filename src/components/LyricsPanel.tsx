@@ -61,11 +61,8 @@ export function LyricsPanel() {
     //   audioTime = lineTime + offsetMs/1000
     const offsetSec = (lyrics?.offsetMs ?? 0) / 1000
     const seekTime = Math.max(0, lineTime + offsetSec)
-    engine.seekTo(seekTime)
+    engine.seekTo(seekTime, isPlaying ? tracks : undefined)
     setCurrentTime(seekTime)
-    if (isPlaying) {
-      setTimeout(() => { engine.play(tracks, seekTime) }, 10)
-    }
   }, [engine, isPlaying, tracks, setCurrentTime, lyrics?.offsetMs])
 
   if (!lyricsVisible) return null

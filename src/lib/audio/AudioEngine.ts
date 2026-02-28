@@ -192,7 +192,7 @@ export class AudioEngine {
     this.emit('timeupdate', { time: 0 })
   }
 
-  seekTo(time: number) {
+  seekTo(time: number, tracks?: TrackData[]) {
     const wasPlaying = this.isPlaying
 
     if (wasPlaying) {
@@ -202,13 +202,19 @@ export class AudioEngine {
 
     this.startOffset = time
 
-    if (wasPlaying) {
+    if (wasPlaying && tracks) {
+      // Restart playback immediately from new position
       const ctx = this.ensureContext()
       this.startTime = ctx.currentTime
-      // Restart all tracks from new position
-      // We need current track list - handled by caller re-calling play()
+      tracks.forEach(track => {
+        if (!this.audioBuffers.has(track.id)) return
+        this.startTrack(track.id, time)
+        this.updateTrackAudio(track)
+      })
+      this.startTimeUpdateLoop()
     }
 
+    // Always emit so the store/UI updates the playhead position
     this.emit('timeupdate', { time })
   }
 
