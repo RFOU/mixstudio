@@ -35,6 +35,7 @@ export function WaveformCanvas({
   const isDraggingRef = useRef(false)
   const dragStartXRef = useRef(0)
   const isLoopDragRef = useRef(false)
+  const drawRef = useRef<() => void>(() => {})
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current
@@ -112,30 +113,40 @@ export function WaveformCanvas({
     }
   }, [waveformData, currentTime, duration, color, loopStart, loopEnd, loopEnabled, muted, showLoop])
 
+  // Keep drawRef current so the ResizeObserver always calls the latest draw
+  useEffect(() => {
+    drawRef.current = draw
+  })
+
   useEffect(() => {
     draw()
   }, [draw])
 
-  // Resize observer
+  // Resize observer — runs once on mount only
+  // Assigning canvas.width resets the 2D transform, so scale must be reapplied after each resize
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ro = new ResizeObserver(() => {
-      canvas.width = canvas.offsetWidth * window.devicePixelRatio
-      canvas.height = canvas.offsetHeight * window.devicePixelRatio
+
+    const applySize = () => {
+      const dpr = window.devicePixelRatio || 1
+      canvas.width = canvas.offsetWidth * dpr
+      canvas.height = canvas.offsetHeight * dpr
       const ctx = canvas.getContext('2d')
-      if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-      draw()
+      // After assigning canvas.width the transform is reset — apply scale once
+      if (ctx) ctx.scale(dpr, dpr)
+    }
+
+    const ro = new ResizeObserver(() => {
+      applySize()
+      drawRef.current()
     })
     ro.observe(canvas)
-    // Initial
-    canvas.width = canvas.offsetWidth * window.devicePixelRatio
-    canvas.height = canvas.offsetHeight * window.devicePixelRatio
-    const ctx = canvas.getContext('2d')
-    if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+    applySize()
     draw()
     return () => ro.disconnect()
-  }, [draw])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // mount only — draw is called explicitly via the ResizeObserver and the draw useEffect below
 
   const getTimeFromX = (e: React.MouseEvent | MouseEvent) => {
     const canvas = canvasRef.current
