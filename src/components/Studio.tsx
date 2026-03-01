@@ -61,9 +61,12 @@ export function Studio() {
     projectName: string,
     tracks: PendingTrackRow[]
   ) => {
-    if (tracks.length === 0) return
-
     setLoading(true, `Chargement de "${projectName}"...`)
+
+    if (tracks.length === 0) {
+      setLoading(false)
+      return
+    }
 
     let loaded = 0
 
@@ -83,20 +86,33 @@ export function Studio() {
 
         let signedUrl = ''
         if (!isCached) {
-          // Use the server-side API route so viewers can also load audio
-          // (client-side createSignedUrl fails for viewers due to storage RLS)
+          // Try the server-side API route first (works for all roles, bypasses storage RLS)
           const res = await fetch('/api/audio/signed-url', {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ storagePath: track.storage_path }),
           })
-          if (!res.ok) {
-            const { error } = await res.json().catch(() => ({ error: res.statusText }))
-            console.error(`Signed URL ${track.name}:`, error)
-            continue
+
+          if (res.ok) {
+            const { signedUrl: url } = await res.json()
+            signedUrl = url
+          } else {
+            let errMsg = res.statusText
+            try { const j = await res.json(); errMsg = j.error ?? errMsg } catch {}
+            console.warn(`Signed URL API (${res.status}) pour "${track.name}": ${errMsg} — fallback client`)
+
+            // Fallback: try directly via browser Supabase client (works for admins)
+            const { data: fallbackData, error: fallbackErr } = await supabase.storage
+              .from('audio-files')
+              .createSignedUrl(track.storage_path, 3600)
+
+            if (fallbackErr || !fallbackData?.signedUrl) {
+              console.error(`Fallback signed URL échoué pour "${track.name}":`, fallbackErr?.message ?? 'no url')
+              continue
+            }
+            signedUrl = fallbackData.signedUrl
           }
-          const { signedUrl: url } = await res.json()
-          signedUrl = url
         }
 
         await engine.loadBufferFromUrl(track.id, signedUrl, cacheHint)
@@ -120,8 +136,12 @@ export function Studio() {
 
         loaded++
       } catch (err) {
-        console.error(`Erreur chargement piste ${track.name}:`, err)
+        console.error(`Erreur chargement piste "${track.name}":`, err)
       }
+    }
+
+    if (loaded === 0 && tracks.filter(t => t.storage_path).length > 0) {
+      console.error('Aucune piste chargée — vérifier l\'authentification et les politiques RLS')
     }
 
     setDuration(engine.getDuration())

@@ -132,7 +132,7 @@ export function ProjectsPage() {
     const trackList: TrackDB[] = tracks || []
 
     // Reset engine + store state
-    engine.stop()
+    engine.reset()
     setIsPlaying(false)
     setCurrentTime(0)
     clearTracks()

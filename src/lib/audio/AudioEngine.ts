@@ -320,6 +320,25 @@ export class AudioEngine {
     })
   }
 
+  /** Reset engine state between projects: stop playback and clear all buffers/nodes */
+  reset() {
+    this.stop()
+    // Disconnect and clear all track nodes
+    this.trackNodes.forEach((nodes) => {
+      if (nodes.sourceNode) {
+        try { nodes.sourceNode.stop() } catch {}
+        nodes.sourceNode.disconnect()
+      }
+      try { nodes.gainNode.disconnect() } catch {}
+      try { nodes.muteGainNode.disconnect() } catch {}
+    })
+    this.trackNodes.clear()
+    this.audioBuffers.clear()
+    this.soloedTracks.clear()
+    this.duration = 0
+    this.startOffset = 0
+  }
+
   getBuffer(trackId: string): AudioBuffer | undefined {
     return this.audioBuffers.get(trackId)
   }
