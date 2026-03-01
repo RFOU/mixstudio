@@ -10,6 +10,7 @@ import {
   UserPlus, X, Mail, Lock, User,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { AppNav } from '@/components/AppNav'
 import type { Database } from '@/lib/supabase/types'
 
 type Profile = Database['public']['Tables']['profiles']['Row']
@@ -155,51 +156,37 @@ export function AdminUsersPage() {
     <div style={{ height: '100vh', overflowY: 'auto', background: 'var(--background)' }}>
 
       {/* NAV */}
-      <nav
-        className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 border-b"
-        style={{ background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
-      >
-        <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-dim)' }}>
-              <Music2 size={16} style={{ color: 'var(--accent)' }} />
-            </div>
-            <span className="font-bold text-sm tracking-wide" style={{ color: 'var(--text)' }}>MIXSTUDIO</span>
-          </Link>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
-            style={{ background: 'rgba(99,102,241,0.15)', color: 'var(--accent)' }}>
-            <ShieldCheck size={11} />
-            Admin
-          </div>
+      <AppNav>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold"
+          style={{ background: 'rgba(99,102,241,0.15)', color: 'var(--accent)' }}>
+          <ShieldCheck size={11} />
+          Admin
         </div>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href="/admin/cities"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
-          >
-            <Building2 size={11} />
-            Villes
-          </Link>
-          <Link
-            href="/projects"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
-          >
-            <FolderOpen size={11} />
-            Chansons
-          </Link>
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            <LogOut size={12} />
-            Déconnexion
-          </button>
-        </div>
-      </nav>
+        <Link
+          href="/admin/cities"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
+        >
+          <Building2 size={11} />
+          Villes
+        </Link>
+        <Link
+          href="/projects"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs border"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
+        >
+          <FolderOpen size={11} />
+          Chansons
+        </Link>
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <LogOut size={12} />
+          Déconnexion
+        </button>
+      </AppNav>
 
       <div className="max-w-5xl mx-auto px-6 py-10">
 

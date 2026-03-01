@@ -8,6 +8,7 @@ import { useAudioStore } from '@/store/audioStore'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { registerFile, removeFile } from '@/lib/fileRegistry'
 import { formatFileSize } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import { v4 as uuidv4 } from 'uuid'
 
 const TRACK_COLORS = [
@@ -33,6 +34,8 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
 
   const engine = getAudioEngine()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const supabaseRef = useRef(createClient())
+  const supabase = supabaseRef.current
 
   const loadAudioFile = useCallback(async (file: File) => {
     if (file.size > MAX_FILE_SIZE) {
@@ -95,12 +98,22 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
     handleFiles(e.dataTransfer.files)
   }, [handleFiles])
 
-  const handleRemoveTrack = useCallback((id: string) => {
+  const handleRemoveTrack = useCallback(async (id: string) => {
+    // Suppression locale immédiate
     engine.removeTrack(id)
     removeFile(id)
     removeTrack(id)
     setDuration(engine.getDuration())
-  }, [engine, removeTrack, setDuration])
+
+    // Suppression en DB si la piste est sauvegardée
+    const track = tracks.find(t => t.id === id)
+    if (track?.storagePath) {
+      // Supprimer le fichier du storage
+      await supabase.storage.from('audio-files').remove([track.storagePath])
+    }
+    // Supprimer la ligne en DB (même si pas de fichier storage)
+    await supabase.from('tracks').delete().eq('id', id)
+  }, [engine, tracks, removeTrack, setDuration, supabase])
 
   return (
     <div

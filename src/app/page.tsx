@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import { AuthModal } from '@/components/AuthModal'
+import { AppNav } from '@/components/AppNav'
 import {
-  Music2, Play, Layers, Repeat, FileText, Wifi,
-  ChevronRight, Headphones, Mic2, SlidersHorizontal,
+  Play, Layers, Repeat, FileText, Wifi,
+  ChevronRight, Headphones, Mic2, SlidersHorizontal, Music2,
 } from 'lucide-react'
 
 const FEATURES = [
@@ -53,34 +54,22 @@ export default function LandingPage() {
     <div style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--background)' }}>
 
       {/* NAV */}
-      <nav
-        className="sticky top-0 z-30 flex items-center justify-between px-6 py-3 border-b"
-        style={{ background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-dim)' }}>
-            <Music2 size={16} style={{ color: 'var(--accent)' }} />
-          </div>
-          <span className="font-bold text-sm tracking-wide" style={{ color: 'var(--text)' }}>MIXSTUDIO</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowAuth(true)}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            Connexion
-          </button>
-          <button
-            onClick={() => setShowAuth(true)}
-            className="px-4 py-1.5 rounded-lg text-sm font-semibold"
-            style={{ background: 'var(--accent)', color: 'white' }}
-          >
-            Commencer
-          </button>
-        </div>
-      </nav>
+      <AppNav>
+        <button
+          onClick={() => setShowAuth(true)}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          Connexion
+        </button>
+        <button
+          onClick={() => setShowAuth(true)}
+          className="px-4 py-1.5 rounded-lg text-sm font-semibold"
+          style={{ background: 'var(--accent)', color: 'white' }}
+        >
+          Commencer
+        </button>
+      </AppNav>
 
       {/* HERO */}
       <section className="flex flex-col items-center text-center px-6 pt-20 pb-16">

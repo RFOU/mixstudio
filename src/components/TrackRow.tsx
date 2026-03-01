@@ -163,6 +163,17 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
                 ))}
               </div>
             )}
+
+            {/* Bouton supprimer — en compact il est ici, sinon à droite de la waveform */}
+            {compact && (
+              <Button
+                variant="ghost" size="icon"
+                onClick={() => onRemove(track.id)}
+                style={{ color: 'var(--danger)', width: 20, height: 20 } as React.CSSProperties}
+              >
+                <Trash2 size={11} />
+              </Button>
+            )}
           </div>
 
         </div>
@@ -180,13 +191,13 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
           />
         </div>
 
-        {/* Supprimer — masqué en compact */}
+        {/* Supprimer — à droite de la waveform en mode normal */}
         {!compact && (
           <div className="flex items-center px-1.5 flex-shrink-0">
             <Button
               variant="ghost" size="icon"
               onClick={() => onRemove(track.id)}
-              className="opacity-0 group-hover:opacity-100"
+              className="opacity-40 group-hover:opacity-100 transition-opacity"
               style={{ color: 'var(--danger)' } as React.CSSProperties}
             >
               <Trash2 size={13} />

@@ -10,6 +10,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useAudioStore } from '@/store/audioStore'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
+import { AppNav } from '@/components/AppNav'
 import type { Database } from '@/lib/supabase/types'
 
 type Project = Database['public']['Tables']['projects']['Row']
@@ -200,59 +201,47 @@ export function ProjectsPage() {
     <div style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--background)' }}>
 
       {/* NAV */}
-      <nav
-        className="sticky top-0 z-30 flex items-center justify-between px-4 py-3 border-b"
-        style={{ background: 'rgba(10,10,15,0.9)', backdropFilter: 'blur(12px)', borderColor: 'var(--border)' }}
-      >
-        <Link href="/" className="flex items-center gap-2 flex-shrink-0">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'var(--accent-dim)' }}>
-            <Music2 size={16} style={{ color: 'var(--accent)' }} />
-          </div>
-          <span className="font-bold text-sm tracking-wide" style={{ color: 'var(--text)' }}>MIXSTUDIO</span>
+      <AppNav>
+        {user && (
+          <span className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>{user.email}</span>
+        )}
+        {role === 'admin' && (
+          <>
+            <Link
+              href="/admin/cities"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border"
+              style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
+            >
+              <Building2 size={11} />
+              <span className="hidden sm:inline">Villes</span>
+            </Link>
+            <Link
+              href="/admin/users"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+              style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}
+            >
+              <ShieldCheck size={11} />
+              <span className="hidden sm:inline">Admin</span>
+            </Link>
+          </>
+        )}
+        <Link
+          href="/studio"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
+        >
+          <Play size={11} />
+          <span className="hidden sm:inline">Studio</span>
         </Link>
-
-        <div className="flex items-center gap-2">
-          {user && (
-            <span className="text-xs hidden sm:block" style={{ color: 'var(--text-muted)' }}>{user.email}</span>
-          )}
-          {role === 'admin' && (
-            <>
-              <Link
-                href="/admin/cities"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border"
-                style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
-              >
-                <Building2 size={11} />
-                <span className="hidden sm:inline">Villes</span>
-              </Link>
-              <Link
-                href="/admin/users"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
-                style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}
-              >
-                <ShieldCheck size={11} />
-                <span className="hidden sm:inline">Admin</span>
-              </Link>
-            </>
-          )}
-          <Link
-            href="/studio"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border"
-            style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
-          >
-            <Play size={11} />
-            <span className="hidden sm:inline">Studio</span>
-          </Link>
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
-            style={{ color: 'var(--text-muted)' }}
-          >
-            <LogOut size={12} />
-            Déconnexion
-          </button>
-        </div>
-      </nav>
+        <button
+          onClick={handleSignOut}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
+          style={{ color: 'var(--text-muted)' }}
+        >
+          <LogOut size={12} />
+          Déconnexion
+        </button>
+      </AppNav>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
 

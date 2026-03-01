@@ -191,7 +191,8 @@ export const useAudioStore = create<AudioState>()(
       state.tracks.push(track)
     }),
     removeTrack: (id) => set((state) => {
-      state.tracks = state.tracks.filter(t => t.id !== id)
+      const idx = state.tracks.findIndex(t => t.id === id)
+      if (idx !== -1) state.tracks.splice(idx, 1)
     }),
     updateTrack: (id, updates) => set((state) => {
       const track = state.tracks.find(t => t.id === id)
