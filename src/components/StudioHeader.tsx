@@ -1,11 +1,14 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { FolderOpen, User, LogOut, FileText, Music2, Save, CheckCircle2, AlertCircle } from 'lucide-react'
+import { FolderOpen, User, LogOut, FileText, Music2, Save, CheckCircle2, AlertCircle, Sun, Moon } from 'lucide-react'
+import { useTheme } from '@/lib/useTheme'
+import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useAudioStore } from '@/store/audioStore'
 import { getFile } from '@/lib/fileRegistry'
+import { APP_VERSION } from '@/lib/version'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 interface StudioHeaderProps {
@@ -16,8 +19,10 @@ interface StudioHeaderProps {
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) {
-  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject, lyrics } = useAudioStore()
+  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject, lyrics, setUserRole } = useAudioStore()
+  const { theme, toggle: toggleTheme } = useTheme()
   const [user, setUser] = useState<SupabaseUser | null>(null)
+  const [role, setRole] = useState<'admin' | 'viewer'>('viewer')
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [saveError, setSaveError] = useState('')
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -26,9 +31,25 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
   const supabase = supabaseRef.current
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null))
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser()
+      const u = data.user ?? null
+      setUser(u)
+      if (u) {
+        const { data: profile } = await supabase
+          .from('profiles').select('role').eq('id', u.id).single()
+        const r = (profile?.role as 'admin' | 'viewer') ?? 'viewer'
+        setRole(r)
+        setUserRole(r)
+      }
+    }
+    loadUser()
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null)
+      if (!session?.user) {
+        setRole('viewer')
+        setUserRole('viewer')
+      }
     })
     return () => subscription.unsubscribe()
   }, [supabase])
@@ -53,7 +74,7 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
 
         if (projError || !proj) {
           setSaveStatus('error')
-          setSaveError(projError?.message ?? 'Erreur création projet')
+          setSaveError(projError?.message ?? 'Erreur création chanson')
           return
         }
         currentProjectId = proj.id
@@ -91,7 +112,6 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
           name: track.name,
           position: track.position,
           volume: track.volume,
-          pan: track.pan,
           muted: track.muted,
           soloed: track.soloed,
           color: track.color,
@@ -158,30 +178,42 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
       className="flex items-center justify-between px-3 py-1.5 border-b flex-shrink-0"
       style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', height: 36 }}
     >
-      {/* Logo */}
+      {/* Logo + version */}
       <div className="flex items-center gap-1.5">
         <Music2 size={14} style={{ color: 'var(--accent)' }} />
         <span className="text-xs font-bold tracking-wide" style={{ color: 'var(--text)' }}>MIXSTUDIO</span>
+        <span className="text-xs tabular-nums" style={{ color: 'var(--text-muted)', opacity: 0.5 }}>v{APP_VERSION}</span>
       </div>
 
       {/* Actions */}
       <div className="flex items-center gap-1">
+        {/* Toggle dark / light */}
+        <Button
+          variant="ghost" size="icon"
+          onClick={toggleTheme}
+          title={theme === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'}
+        >
+          {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
+        </Button>
+
         <Button
           variant={lyricsVisible ? 'active' : 'ghost'} size="sm"
           onClick={() => setLyricsVisible(!lyricsVisible)}
           title="Afficher/masquer les paroles"
         >
           <FileText size={12} className="mr-1" />
-          Paroles
+          <span className="hidden sm:inline">Paroles</span>
         </Button>
 
-        <Button variant="ghost" size="sm" onClick={onOpenProjects}>
-          <FolderOpen size={12} className="mr-1" />
-          Projets
-        </Button>
+        <Link href="/projects">
+          <Button variant="ghost" size="sm">
+            <FolderOpen size={12} className="mr-1" />
+            <span className="hidden sm:inline">Chansons</span>
+          </Button>
+        </Link>
 
-        {/* Bouton Sauvegarder */}
-        {hasTracks && (
+        {/* Bouton Sauvegarder — admin uniquement */}
+        {hasTracks && role === 'admin' && (
           <Button
             variant={saveStatus === 'saved' ? 'active' : saveStatus === 'error' ? 'danger' : 'default'}
             size="sm"
@@ -205,7 +237,7 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
 
         {user ? (
           <>
-            <div className="flex items-center gap-1 px-2 py-1 rounded text-xs" style={{ color: 'var(--text-muted)' }}>
+            <div className="hidden sm:flex items-center gap-1 px-2 py-1 rounded text-xs" style={{ color: 'var(--text-muted)' }}>
               <User size={12} />
               <span className="max-w-[100px] truncate">{user.email}</span>
             </div>
@@ -216,7 +248,7 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
         ) : (
           <Button variant="ghost" size="sm" onClick={onOpenAuth}>
             <User size={12} className="mr-1" />
-            Connexion
+            <span className="hidden sm:inline">Connexion</span>
           </Button>
         )}
       </div>

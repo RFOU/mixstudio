@@ -9,11 +9,28 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      cities: {
+        Row: {
+          id: string
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          created_at?: string
+        }
+        Update: {
+          name?: string
+        }
+      }
       profiles: {
         Row: {
           id: string
           username: string | null
           avatar_url: string | null
+          role: 'admin' | 'viewer'
+          city_id: string | null
           created_at: string
           updated_at: string
         }
@@ -21,6 +38,8 @@ export type Database = {
           id: string
           username?: string | null
           avatar_url?: string | null
+          role?: 'admin' | 'viewer'
+          city_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -28,7 +47,23 @@ export type Database = {
           id?: string
           username?: string | null
           avatar_url?: string | null
+          role?: 'admin' | 'viewer'
+          city_id?: string | null
           updated_at?: string
+        }
+      }
+      project_cities: {
+        Row: {
+          project_id: string
+          city_id: string
+        }
+        Insert: {
+          project_id: string
+          city_id: string
+        }
+        Update: {
+          project_id?: string
+          city_id?: string
         }
       }
       projects: {

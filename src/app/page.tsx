@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { AuthModal } from '@/components/AuthModal'
 import {
   Music2, Play, Layers, Repeat, FileText, Wifi,
@@ -120,14 +119,14 @@ export default function LandingPage() {
             Créer un compte gratuit
             <ChevronRight size={16} />
           </button>
-          <Link
-            href="/studio"
+          <button
+            onClick={() => setShowAuth(true)}
             className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold border"
             style={{ borderColor: 'var(--border)', color: 'var(--text)', background: 'var(--surface)' }}
           >
             <Play size={14} />
-            Essayer sans compte
-          </Link>
+            Se connecter
+          </button>
         </div>
       </section>
 
@@ -264,13 +263,13 @@ export default function LandingPage() {
           >
             Créer un compte gratuit <ChevronRight size={16} />
           </button>
-          <Link
-            href="/studio"
+          <button
+            onClick={() => setShowAuth(true)}
             className="flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold border"
             style={{ borderColor: 'var(--border)', color: 'var(--text)' }}
           >
-            <Play size={14} /> Essayer sans compte
-          </Link>
+            <Play size={14} /> Se connecter
+          </button>
         </div>
       </section>
 

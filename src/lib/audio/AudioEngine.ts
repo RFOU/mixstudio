@@ -7,7 +7,6 @@ interface TrackNode {
   id: string
   sourceNode: AudioBufferSourceNode | null
   gainNode: GainNode
-  pannerNode: StereoPannerNode
   muteGainNode: GainNode
 }
 
@@ -134,19 +133,16 @@ export class AudioEngine {
     this.trackNodes.delete(trackId)
 
     const gainNode = ctx.createGain()
-    const pannerNode = ctx.createStereoPanner()
     const muteGainNode = ctx.createGain()
 
-    // Chain: gain -> panner -> muteGain -> master
-    gainNode.connect(pannerNode)
-    pannerNode.connect(muteGainNode)
+    // Chain: gain -> muteGain -> master
+    gainNode.connect(muteGainNode)
     muteGainNode.connect(this.masterGain)
 
     this.trackNodes.set(trackId, {
       id: trackId,
       sourceNode: null,
       gainNode,
-      pannerNode,
       muteGainNode,
     })
   }
@@ -293,11 +289,9 @@ export class AudioEngine {
       nodes.muteGainNode.gain.cancelScheduledValues(now)
       nodes.muteGainNode.gain.setTargetAtTime(isAudible ? 1 : 0, now, 0.005)
       nodes.gainNode.gain.setTargetAtTime(track.volume, now, 0.005)
-      nodes.pannerNode.pan.setTargetAtTime(track.pan, now, 0.005)
     } else {
       nodes.muteGainNode.gain.value = isAudible ? 1 : 0
       nodes.gainNode.gain.value = track.volume
-      nodes.pannerNode.pan.value = track.pan
     }
   }
 
@@ -314,7 +308,6 @@ export class AudioEngine {
         nodes.sourceNode.disconnect()
       }
       nodes.gainNode.disconnect()
-      nodes.pannerNode.disconnect()
       nodes.muteGainNode.disconnect()
       this.trackNodes.delete(trackId)
     }

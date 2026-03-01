@@ -10,16 +10,18 @@ import { getAudioEngine } from '@/lib/audio/AudioEngine'
 
 export function LyricsPanel() {
   const {
-    lyrics, lyricsVisible, currentTime, isPlaying,
+    lyrics, lyricsVisible, currentTime, isPlaying, userRole,
     setLyrics, setLyricsVisible, setLyricsOffset,
     tracks, setCurrentTime,
   } = useAudioStore()
+
+  const isAdmin = userRole === 'admin'
 
   const engine = getAudioEngine()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const activeLyricsRef = useRef<HTMLDivElement>(null)
-  const [isKaraokeMode, setIsKaraokeMode] = useState(false)
+  const [isKaraokeMode, setIsKaraokeMode] = useState(true)
 
   const currentLineIndex = lyrics
     ? getCurrentLyricsLine(lyrics.lines, currentTime, lyrics.offsetMs)
@@ -69,17 +71,15 @@ export function LyricsPanel() {
 
   return (
     <div
-      className="flex flex-col border-l"
+      className="flex flex-col border-t sm:border-t-0 sm:border-l flex-1 sm:flex-none sm:w-[300px] sm:min-w-[240px] sm:max-w-[400px]"
       style={{
-        width: 300,
-        minWidth: 240,
-        maxWidth: 400,
+        minHeight: 0,
         background: 'var(--surface)',
         borderColor: 'var(--border)',
-        flexShrink: 0,
-        overflow: 'hidden',   // bounds the panel height within the flex parent
+        overflow: 'hidden',
       }}
     >
+
       {/* Header */}
       <div
         className="flex items-center justify-between px-3 py-2 border-b flex-shrink-0"
@@ -107,13 +107,15 @@ export function LyricsPanel() {
               <AlignCenter size={14} />
             </Button>
           )}
-          <Button
-            variant="ghost" size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            title="Importer paroles (LRC, SRT, TXT)"
-          >
-            <Upload size={14} />
-          </Button>
+          {isAdmin && (
+            <Button
+              variant="ghost" size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              title="Importer paroles (LRC, SRT, TXT)"
+            >
+              <Upload size={14} />
+            </Button>
+          )}
           <Button variant="ghost" size="icon" onClick={() => setLyricsVisible(false)}>
             <X size={14} />
           </Button>
@@ -127,8 +129,8 @@ export function LyricsPanel() {
         />
       </div>
 
-      {/* Offset control */}
-      {lyrics && (
+      {/* Offset control — admin only */}
+      {lyrics && isAdmin && (
         <div
           className="flex items-center gap-2 px-3 py-1.5 border-b flex-shrink-0"
           style={{ borderColor: 'var(--border)' }}
@@ -169,14 +171,18 @@ export function LyricsPanel() {
             style={{ color: 'var(--text-muted)' }}
           >
             <FileText size={32} style={{ opacity: 0.3 }} />
-            <p className="text-sm">Importez un fichier LRC, SRT ou TXT</p>
-            <p className="text-xs opacity-70">
-              Cliquez sur l&apos;icône upload ci-dessus
-            </p>
-            <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
-              <Upload size={14} className="mr-1" />
-              Importer
-            </Button>
+            {isAdmin ? (
+              <>
+                <p className="text-sm">Importez un fichier LRC, SRT ou TXT</p>
+                <p className="text-xs opacity-70">Cliquez sur l&apos;icône upload ci-dessus</p>
+                <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={14} className="mr-1" />
+                  Importer
+                </Button>
+              </>
+            ) : (
+              <p className="text-sm">Aucune parole disponible</p>
+            )}
           </div>
         ) : isKaraokeMode ? (
           <KaraokeView
@@ -221,20 +227,37 @@ function KaraokeView({
   currentLineIndex: number
   onSeek: (time: number) => void
 }) {
-  const prev = currentLineIndex > 0 ? lines[currentLineIndex - 1] : null
-  const current = currentLineIndex >= 0 ? lines[currentLineIndex] : null
-  const next = currentLineIndex < lines.length - 1 ? lines[currentLineIndex + 1] : null
+  const idx = currentLineIndex >= 0 ? currentLineIndex : -1
+
+  const prev2 = idx >= 2 ? lines[idx - 2] : null
+  const prev1 = idx >= 1 ? lines[idx - 1] : null
+  const current = idx >= 0 ? lines[idx] : null
+  const next1 = idx >= 0 && idx < lines.length - 1 ? lines[idx + 1] : null
+  const next2 = idx >= 0 && idx < lines.length - 2 ? lines[idx + 2] : null
 
   return (
-    <div className="flex flex-col items-center justify-center h-full gap-4 text-center px-2">
-      {prev && (
-        <p className="text-sm opacity-30 cursor-pointer" onClick={() => onSeek(prev.time)}>
-          {prev.text}
+    <div className="flex flex-col items-center justify-center h-full gap-2 text-center px-2">
+      {prev2 && (
+        <p
+          className="text-xs cursor-pointer leading-snug w-full"
+          style={{ color: 'var(--text-muted)', opacity: 0.25 }}
+          onClick={() => onSeek(prev2.time)}
+        >
+          {prev2.text}
+        </p>
+      )}
+      {prev1 && (
+        <p
+          className="text-sm cursor-pointer leading-snug w-full"
+          style={{ color: 'var(--text-muted)', opacity: 0.45 }}
+          onClick={() => onSeek(prev1.time)}
+        >
+          {prev1.text}
         </p>
       )}
       {current ? (
         <p
-          className="text-xl font-bold leading-relaxed cursor-pointer"
+          className="text-lg font-bold leading-relaxed cursor-pointer w-full"
           style={{ color: 'var(--accent)' }}
           onClick={() => onSeek(current.time)}
         >
@@ -243,9 +266,22 @@ function KaraokeView({
       ) : (
         <p className="text-lg opacity-20">♪</p>
       )}
-      {next && (
-        <p className="text-sm opacity-50 cursor-pointer" onClick={() => onSeek(next.time)}>
-          {next.text}
+      {next1 && (
+        <p
+          className="text-sm cursor-pointer leading-snug w-full"
+          style={{ color: 'var(--text-muted)', opacity: 0.45 }}
+          onClick={() => onSeek(next1.time)}
+        >
+          {next1.text}
+        </p>
+      )}
+      {next2 && (
+        <p
+          className="text-xs cursor-pointer leading-snug w-full"
+          style={{ color: 'var(--text-muted)', opacity: 0.25 }}
+          onClick={() => onSeek(next2.time)}
+        >
+          {next2.text}
         </p>
       )}
     </div>

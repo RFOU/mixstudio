@@ -118,7 +118,6 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
           name: track.name,
           position: track.position,
           volume: track.volume,
-          pan: track.pan,
           muted: track.muted,
           soloed: track.soloed,
           color: track.color,
@@ -138,8 +137,8 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
       setSaveStatus('success')
       setSaveMessage(
         uploadErrors > 0
-          ? `Projet sauvegardé avec ${tracks.length - uploadErrors}/${tracks.length} piste(s). ${uploadErrors} erreur(s) d'upload.`
-          : `"${proj.name}" sauvegardé — ${tracks.length} piste(s).`
+          ? `Chanson sauvegardée avec ${tracks.length - uploadErrors}/${tracks.length} piste(s). ${uploadErrors} erreur(s) d'upload.`
+          : `"${proj.name}" sauvegardée — ${tracks.length} piste(s).`
       )
       await reloadProjects()
     } catch (err: unknown) {
@@ -158,7 +157,7 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
       return
     }
 
-    const name = newProjectName.trim() || 'Nouveau projet'
+    const name = newProjectName.trim() || 'Nouvelle chanson'
     setSaving(true)
 
     const { error } = await supabase
@@ -177,7 +176,7 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
   }
 
   const handleDeleteProject = async (id: string) => {
-    if (!confirm('Supprimer ce projet ?')) return
+    if (!confirm('Supprimer cette chanson ?')) return
     const { error } = await supabase.from('projects').delete().eq('id', id)
     if (error) {
       console.error('Erreur suppression:', error.message)
@@ -215,7 +214,7 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-2">
             <FolderOpen size={18} style={{ color: 'var(--accent)' }} />
-            <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Projets</h2>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--text)' }}>Chansons</h2>
           </div>
           <div className="flex items-center gap-3">
             {/* Statut connexion */}
@@ -235,7 +234,7 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
             <div className="mx-5 mt-4 p-3 rounded-lg flex items-center gap-2 text-sm"
               style={{ background: 'rgba(245,158,11,0.1)', color: 'var(--warning)', border: '1px solid rgba(245,158,11,0.3)' }}>
               <LogIn size={14} className="flex-shrink-0" />
-              <span>Connectez-vous pour sauvegarder vos projets dans le cloud.</span>
+              <span>Connectez-vous pour sauvegarder vos chansons dans le cloud.</span>
             </div>
           )}
 
@@ -277,13 +276,13 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
             </div>
           )}
 
-          {/* Nouveau projet vide */}
+          {/* Nouvelle chanson vide */}
           <div className="px-5 py-3 border-b flex items-center gap-2" style={{ borderColor: 'var(--border)' }}>
             <input
               type="text"
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
-              placeholder="Nom du nouveau projet vide..."
+              placeholder="Nom de la nouvelle chanson..."
               className="flex-1 text-sm px-3 py-1.5 rounded border"
               style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
               onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
@@ -294,10 +293,10 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
             </Button>
           </div>
 
-          {/* Liste des projets */}
+          {/* Liste des chansons */}
           <div className="p-3">
             <p className="text-xs font-semibold uppercase tracking-wider px-1 mb-2" style={{ color: 'var(--text-muted)' }}>
-              Projets sauvegardés
+              Chansons sauvegardées
             </p>
             {loading ? (
               <div className="flex items-center justify-center py-8" style={{ color: 'var(--text-muted)' }}>
@@ -306,7 +305,7 @@ export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
             ) : projects.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 gap-2" style={{ color: 'var(--text-muted)' }}>
                 <Music2 size={28} style={{ opacity: 0.3 }} />
-                <p className="text-sm">Aucun projet sauvegardé</p>
+                <p className="text-sm">Aucune chanson sauvegardée</p>
               </div>
             ) : (
               <div className="space-y-1.5">

@@ -8,7 +8,6 @@ export interface TrackData {
   name: string
   position: number
   volume: number
-  pan: number
   muted: boolean
   soloed: boolean
   color: string
@@ -16,7 +15,6 @@ export interface TrackData {
   audioBuffer?: AudioBuffer
   sourceNode?: AudioBufferSourceNode
   gainNode?: GainNode
-  pannerNode?: StereoPannerNode
   localFile?: File
   // DB state
   storagePath?: string | null
@@ -26,6 +24,29 @@ export interface TrackData {
   sampleRate?: number | null
   // Waveform data
   waveformData?: Float32Array
+}
+
+/** Raw DB track row stored for deferred loading in Studio */
+export interface PendingTrackRow {
+  id: string
+  name: string
+  position: number
+  volume: number
+  muted: boolean
+  soloed: boolean
+  color: string
+  storage_path: string | null
+  file_name: string | null
+  file_size: number | null
+  duration: number | null
+  sample_rate: number | null
+}
+
+export interface PendingLoad {
+  projectId: string
+  projectName: string
+  bpm: number | null
+  tracks: PendingTrackRow[]
 }
 
 export interface LoopPreset {
@@ -55,6 +76,9 @@ interface AudioState {
   projectName: string
   bpm: number | null
 
+  // Deferred load (set by ProjectsPage before navigating to /studio)
+  pendingLoad: PendingLoad | null
+
   // Tracks
   tracks: TrackData[]
 
@@ -78,9 +102,14 @@ interface AudioState {
   isLoading: boolean
   loadingMessage: string
 
+  // User role (set by StudioHeader after auth check — avoids duplicate Supabase queries)
+  userRole: 'admin' | 'viewer'
+
   // Actions - Project
   setProject: (id: string, name: string, bpm?: number | null) => void
   setProjectName: (name: string) => void
+  setPendingLoad: (pending: PendingLoad | null) => void
+  setUserRole: (role: 'admin' | 'viewer') => void
 
   // Actions - Tracks
   addTrack: (track: TrackData) => void
@@ -89,7 +118,6 @@ interface AudioState {
   setTrackMute: (id: string, muted: boolean) => void
   setTrackSolo: (id: string, soloed: boolean) => void
   setTrackVolume: (id: string, volume: number) => void
-  setTrackPan: (id: string, pan: number) => void
   reorderTracks: (fromIndex: number, toIndex: number) => void
   clearTracks: () => void
 
@@ -120,6 +148,7 @@ export const useAudioStore = create<AudioState>()(
     projectId: null,
     projectName: 'Nouveau projet',
     bpm: null,
+    pendingLoad: null,
 
     tracks: [],
 
@@ -139,6 +168,8 @@ export const useAudioStore = create<AudioState>()(
     isLoading: false,
     loadingMessage: '',
 
+    userRole: 'viewer',
+
     // Project actions
     setProject: (id, name, bpm) => set((state) => {
       state.projectId = id
@@ -147,6 +178,12 @@ export const useAudioStore = create<AudioState>()(
     }),
     setProjectName: (name) => set((state) => {
       state.projectName = name
+    }),
+    setPendingLoad: (pending) => set((state) => {
+      state.pendingLoad = pending
+    }),
+    setUserRole: (role) => set((state) => {
+      state.userRole = role
     }),
 
     // Track actions
@@ -171,10 +208,6 @@ export const useAudioStore = create<AudioState>()(
     setTrackVolume: (id, volume) => set((state) => {
       const track = state.tracks.find(t => t.id === id)
       if (track) track.volume = volume
-    }),
-    setTrackPan: (id, pan) => set((state) => {
-      const track = state.tracks.find(t => t.id === id)
-      if (track) track.pan = pan
     }),
     reorderTracks: (fromIndex, toIndex) => set((state) => {
       const [track] = state.tracks.splice(fromIndex, 1)

@@ -23,8 +23,24 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  // Refresh session
-  await supabase.auth.getUser()
+  // IMPORTANT: getUser() rafraîchit la session — ne jamais utiliser getSession() ici
+  const { data: { user } } = await supabase.auth.getUser()
+
+  // Routes protégées — redirect vers / si non connecté
+  const protectedPaths = ['/projects', '/studio', '/admin']
+  const pathname = request.nextUrl.pathname
+  const isProtected = protectedPaths.some(p => pathname === p || pathname.startsWith(p + '/'))
+
+  if (isProtected && !user) {
+    const redirectUrl = request.nextUrl.clone()
+    redirectUrl.pathname = '/'
+    // Propager les cookies Supabase dans la réponse de redirect
+    const redirectResponse = NextResponse.redirect(redirectUrl)
+    supabaseResponse.cookies.getAll().forEach(cookie => {
+      redirectResponse.cookies.set(cookie.name, cookie.value)
+    })
+    return redirectResponse
+  }
 
   return supabaseResponse
 }

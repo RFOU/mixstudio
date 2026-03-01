@@ -14,6 +14,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
+      {/* Script anti-FOUC : applique le thème avant le premier rendu */}
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `
+          try {
+            var t = localStorage.getItem('mixstudio-theme');
+            if (t === 'light') document.documentElement.setAttribute('data-theme','light');
+          } catch(e) {}
+        `}} />
+      </head>
       <body className="antialiased">
         {children}
         <Script id="register-sw" strategy="afterInteractive">{`

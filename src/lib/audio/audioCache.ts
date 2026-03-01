@@ -1,33 +1,112 @@
 'use client'
 
 /**
- * Audio Cache using the Cache API.
+ * Audio Cache using IndexedDB.
  *
- * Cache key strategy:
- *   audio-v1/{storagePath}/{fileSize}
+ * IndexedDB is used instead of the Cache API for better cross-platform compatibility,
+ * especially on iOS Safari where the Cache API is cleared aggressively between sessions.
+ *
+ * Cache key strategy: `{storagePath}@{fileSize}`
  *
  * If the file is updated (new upload → different fileSize in DB),
- * the cache key changes → old entry is left but ignored, new one is fetched.
+ * the cache key changes → old entry is ignored, new one is fetched.
  *
  * Cleanup of stale entries for the same storagePath is done on put().
  */
 
-const CACHE_NAME = 'mixstudio-audio-v1'
+const DB_NAME = 'mixstudio-audio-cache'
+const DB_VERSION = 1
+const STORE_NAME = 'audio'
 
-function cacheKey(storagePath: string, fileSize: number): string {
-  // Use a fake URL format so the Cache API accepts it
-  return `https://mixstudio-cache/audio/${encodeURIComponent(storagePath)}/${fileSize}`
+interface CacheEntry {
+  key: string          // "{storagePath}@{fileSize}"
+  storagePath: string
+  fileSize: number
+  data: ArrayBuffer
+  cachedAt: number     // Date.now()
 }
 
-function storagePathFromKey(url: string): string {
-  // Extract storagePath from the fake URL
-  try {
-    const parts = new URL(url).pathname.split('/')
-    // /audio/{encodedStoragePath}/{fileSize}
-    return decodeURIComponent(parts[2])
-  } catch {
-    return ''
-  }
+function cacheKey(storagePath: string, fileSize: number): string {
+  return `${storagePath}@${fileSize}`
+}
+
+let dbPromise: Promise<IDBDatabase> | null = null
+
+function openDB(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise
+
+  dbPromise = new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.open(DB_NAME, DB_VERSION)
+
+      req.onupgradeneeded = (e) => {
+        const db = (e.target as IDBOpenDBRequest).result
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' })
+          store.createIndex('storagePath', 'storagePath', { unique: false })
+        }
+      }
+
+      req.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result)
+      req.onerror = (e) => {
+        console.warn('[audioCache] IndexedDB open failed:', (e.target as IDBOpenDBRequest).error)
+        dbPromise = null
+        reject((e.target as IDBOpenDBRequest).error)
+      }
+    } catch (err) {
+      console.warn('[audioCache] IndexedDB unavailable:', err)
+      dbPromise = null
+      reject(err)
+    }
+  })
+
+  return dbPromise
+}
+
+function idbGet(db: IDBDatabase, key: string): Promise<CacheEntry | undefined> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).get(key)
+    req.onsuccess = () => resolve(req.result as CacheEntry | undefined)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+function idbPut(db: IDBDatabase, entry: CacheEntry): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const req = tx.objectStore(STORE_NAME).put(entry)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  })
+}
+
+function idbDelete(db: IDBDatabase, key: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    const req = tx.objectStore(STORE_NAME).delete(key)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+  })
+}
+
+function idbGetByIndex(db: IDBDatabase, indexName: string, value: string): Promise<CacheEntry[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const index = tx.objectStore(STORE_NAME).index(indexName)
+    const req = index.getAll(value)
+    req.onsuccess = () => resolve(req.result as CacheEntry[])
+    req.onerror = () => reject(req.error)
+  })
+}
+
+function idbGetAll(db: IDBDatabase): Promise<CacheEntry[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).getAll()
+    req.onsuccess = () => resolve(req.result as CacheEntry[])
+    req.onerror = () => reject(req.error)
+  })
 }
 
 /** Returns true if a cached ArrayBuffer exists for this track version */
@@ -36,9 +115,9 @@ export async function hasCachedAudio(
   fileSize: number
 ): Promise<boolean> {
   try {
-    const cache = await caches.open(CACHE_NAME)
-    const match = await cache.match(cacheKey(storagePath, fileSize))
-    return !!match
+    const db = await openDB()
+    const entry = await idbGet(db, cacheKey(storagePath, fileSize))
+    return !!entry
   } catch {
     return false
   }
@@ -46,17 +125,17 @@ export async function hasCachedAudio(
 
 /**
  * Get cached ArrayBuffer for a track, or null if not cached.
- * Returns null if the Cache API is unavailable (private browsing, etc.)
+ * Returns null if IndexedDB is unavailable.
  */
 export async function getCachedAudio(
   storagePath: string,
   fileSize: number
 ): Promise<ArrayBuffer | null> {
   try {
-    const cache = await caches.open(CACHE_NAME)
-    const response = await cache.match(cacheKey(storagePath, fileSize))
-    if (!response) return null
-    return await response.arrayBuffer()
+    const db = await openDB()
+    const entry = await idbGet(db, cacheKey(storagePath, fileSize))
+    if (!entry) return null
+    return entry.data
   } catch {
     return null
   }
@@ -72,31 +151,24 @@ export async function putCachedAudio(
   data: ArrayBuffer
 ): Promise<void> {
   try {
-    const cache = await caches.open(CACHE_NAME)
+    const db = await openDB()
 
     // Remove stale entries for the same storagePath
-    const keys = await cache.keys()
-    for (const request of keys) {
-      if (storagePathFromKey(request.url) === storagePath) {
-        // Check if it's a different fileSize (stale)
-        const existingFileSize = parseInt(new URL(request.url).pathname.split('/').pop() ?? '0')
-        if (existingFileSize !== fileSize) {
-          await cache.delete(request)
-        }
+    const staleEntries = await idbGetByIndex(db, 'storagePath', storagePath)
+    for (const entry of staleEntries) {
+      if (entry.fileSize !== fileSize) {
+        await idbDelete(db, entry.key)
       }
     }
 
     // Store new entry
-    const response = new Response(data, {
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Content-Length': String(data.byteLength),
-        'X-Storage-Path': storagePath,
-        'X-File-Size': String(fileSize),
-        'X-Cached-At': new Date().toISOString(),
-      },
+    await idbPut(db, {
+      key: cacheKey(storagePath, fileSize),
+      storagePath,
+      fileSize,
+      data,
+      cachedAt: Date.now(),
     })
-    await cache.put(cacheKey(storagePath, fileSize), response)
   } catch (err) {
     // Cache write failure is non-fatal — fall back to network
     console.warn('[audioCache] putCachedAudio failed:', err)
@@ -110,24 +182,18 @@ export async function getCacheStats(): Promise<{
   entries: { storagePath: string; fileSize: number; cachedAt: string }[]
 }> {
   try {
-    const cache = await caches.open(CACHE_NAME)
-    const keys = await cache.keys()
+    const db = await openDB()
+    const all = await idbGetAll(db)
     let totalBytes = 0
-    const entries = []
-
-    for (const request of keys) {
-      const response = await cache.match(request)
-      if (!response) continue
-      const fileSize = parseInt(response.headers.get('X-File-Size') ?? '0')
-      totalBytes += fileSize
-      entries.push({
-        storagePath: response.headers.get('X-Storage-Path') ?? '',
-        fileSize,
-        cachedAt: response.headers.get('X-Cached-At') ?? '',
-      })
-    }
-
-    return { count: keys.length, totalBytes, entries }
+    const entries = all.map(entry => {
+      totalBytes += entry.fileSize
+      return {
+        storagePath: entry.storagePath,
+        fileSize: entry.fileSize,
+        cachedAt: new Date(entry.cachedAt).toISOString(),
+      }
+    })
+    return { count: all.length, totalBytes, entries }
   } catch {
     return { count: 0, totalBytes: 0, entries: [] }
   }
@@ -136,7 +202,8 @@ export async function getCacheStats(): Promise<{
 /** Clear all cached audio (e.g. for a "clear cache" button) */
 export async function clearAudioCache(): Promise<void> {
   try {
-    await caches.delete(CACHE_NAME)
+    indexedDB.deleteDatabase(DB_NAME)
+    dbPromise = null
   } catch {
     // ignore
   }

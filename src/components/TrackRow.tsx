@@ -19,15 +19,16 @@ interface TrackRowProps {
   track: TrackData
   index: number
   onRemove: (id: string) => void
+  compact?: boolean
 }
 
-export function TrackRow({ track, index, onRemove }: TrackRowProps) {
+export function TrackRow({ track, index, onRemove, compact = false }: TrackRowProps) {
   const {
     tracks, currentTime, duration,
     loopEnabled, loopStart, loopEnd,
     isPlaying, projectId,
     setTrackMute, setTrackSolo,
-    setTrackVolume, setTrackPan,
+    setTrackVolume,
     updateTrack,
     setCurrentTime,
   } = useAudioStore()
@@ -74,11 +75,6 @@ export function TrackRow({ track, index, onRemove }: TrackRowProps) {
     engine.updateTrackAudio({ ...track, volume })
   }, [engine, track, setTrackVolume])
 
-  const handlePan = useCallback((pan: number) => {
-    setTrackPan(track.id, pan)
-    engine.updateTrackAudio({ ...track, pan })
-  }, [engine, track, setTrackPan])
-
   const handleSeek = useCallback((time: number) => {
     engine.seekTo(time, isPlaying ? tracks : undefined)
     setCurrentTime(time)
@@ -89,85 +85,116 @@ export function TrackRow({ track, index, onRemove }: TrackRowProps) {
 
   return (
     <div
-      className="flex items-stretch gap-0 border-b group"
-      style={{ borderColor: 'var(--border)', background: 'var(--surface)', minHeight: 72 }}
+      className="flex flex-col border-b group"
+      style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
     >
-      <div className="w-1 flex-shrink-0" style={{ background: color }} />
+      {/* Ligne principale : color bar + contrôles + waveform + supprimer */}
+      {/* En mode compact (mobile + paroles visibles) : hauteur réduite */}
+      <div className="flex items-stretch gap-0" style={{ minHeight: compact ? 44 : 64 }}>
+        <div className="w-1 flex-shrink-0" style={{ background: color }} />
 
-      <div
-        className="flex flex-col justify-center gap-1 px-3 py-2 flex-shrink-0"
-        style={{ width: 220, borderRight: '1px solid var(--border)' }}
-      >
-        <input
-          type="text"
-          value={track.name}
-          onChange={(e) => handleNameChange(e.target.value)}
-          className="text-sm font-medium bg-transparent border-none outline-none w-full"
-          style={{ color: 'var(--text)' }}
-          title={projectId ? 'Renommer — sauvegarde auto' : 'Renommer'}
-        />
-
-        <div className="flex items-center gap-1.5">
-          <Button
-            variant={track.muted ? 'danger' : 'ghost'} size="sm" onClick={handleMute}
-            className={cn('w-7 h-6 px-0 text-xs font-bold', track.muted && 'bg-[var(--danger)] text-white')}
-          >M</Button>
-
-          <Button
-            variant={track.soloed ? 'active' : 'ghost'} size="sm" onClick={handleSolo}
-            className="w-7 h-6 px-0 text-xs font-bold"
-          >S</Button>
-
-          <div className="flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-            {track.muted ? <VolumeX size={12} /> : <Volume2 size={12} />}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <Slider value={track.volume} onChange={handleVolume} min={0} max={1} step={0.01} />
-          </div>
-
-          <div className="flex gap-px flex-shrink-0">
-            {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold, i) => (
-              <div key={i} className="rounded-sm transition-all duration-75" style={{
-                width: 3, height: 12,
-                background: vuLevel >= threshold
-                  ? (threshold > 0.8 ? 'var(--danger)' : threshold > 0.6 ? 'var(--warning)' : 'var(--success)')
-                  : 'var(--border)',
-              }} />
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs flex-shrink-0" style={{ color: 'var(--text-muted)' }}>PAN</span>
-          <Slider value={track.pan} onChange={handlePan} min={-1} max={1} step={0.01} className="flex-1" />
-          <span className="text-xs tabular-nums w-8 text-right flex-shrink-0" style={{ color: 'var(--text-muted)' }}>
-            {track.pan > 0 ? `R${Math.round(track.pan * 100)}` : track.pan < 0 ? `L${Math.round(-track.pan * 100)}` : 'C'}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex-1 relative overflow-hidden py-2 px-1"
-        style={{ opacity: track.muted || (hasSolo && !track.soloed) ? 0.4 : 1 }}>
-        <WaveformCanvas
-          waveformData={track.waveformData || null}
-          currentTime={currentTime} duration={duration} color={color} height={56}
-          loopStart={loopStart} loopEnd={loopEnd} loopEnabled={loopEnabled}
-          muted={track.muted || (hasSolo && !track.soloed)}
-          onSeek={handleSeek} showLoop
-        />
-      </div>
-
-      <div className="flex items-center px-2 flex-shrink-0">
-        <Button
-          variant="ghost" size="icon"
-          onClick={() => onRemove(track.id)}
-          className="opacity-0 group-hover:opacity-100"
-          style={{ color: 'var(--danger)' } as React.CSSProperties}
+        {/* Panneau contrôles — adaptatif */}
+        <div
+          className="flex flex-col justify-center gap-1 px-2 py-1 flex-shrink-0"
+          style={{ width: 'clamp(120px, 28vw, 220px)', borderRight: '1px solid var(--border)' }}
         >
-          <Trash2 size={14} />
-        </Button>
+          {/* Nom — masqué en compact pour gagner de la place */}
+          {!compact && (
+            <input
+              type="text"
+              value={track.name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              className="text-xs font-medium bg-transparent border-none outline-none w-full"
+              style={{ color: 'var(--text)' }}
+              title={projectId ? 'Renommer — sauvegarde auto' : 'Renommer'}
+            />
+          )}
+
+          <div className="flex items-center gap-1">
+            {/* Bouton Mute — rouge vif si actif */}
+            <Button
+              variant="ghost" size="sm" onClick={handleMute}
+              className={cn('w-6 h-5 px-0 text-xs font-bold border',
+                track.muted
+                  ? 'bg-red-500 text-white border-red-500'
+                  : ''
+              )}
+              style={!track.muted ? {
+                color: 'var(--text)',
+                borderColor: 'var(--border-2)',
+              } : undefined}
+            >M</Button>
+
+            {/* Bouton Solo — jaune/doré si actif */}
+            <Button
+              variant="ghost" size="sm" onClick={handleSolo}
+              className={cn('w-6 h-5 px-0 text-xs font-bold border',
+                track.soloed
+                  ? 'bg-yellow-400 text-black border-yellow-400'
+                  : ''
+              )}
+              style={!track.soloed ? {
+                color: 'var(--text)',
+                borderColor: 'var(--border-2)',
+              } : undefined}
+            >S</Button>
+
+            {/* Icône volume — couleur selon état */}
+            <div className="flex-shrink-0" style={{
+              color: track.muted ? 'var(--danger)' : 'var(--text)'
+            }}>
+              {track.muted ? <VolumeX size={11} /> : <Volume2 size={11} />}
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <Slider value={track.volume} onChange={handleVolume} min={0} max={1} step={0.01} />
+            </div>
+
+            {/* VU meter — masqué sur mobile et en compact */}
+            {!compact && (
+              <div className="flex gap-px flex-shrink-0 hidden sm:flex">
+                {[0.2, 0.4, 0.6, 0.8, 1.0].map((threshold, i) => (
+                  <div key={i} className="rounded-sm transition-all duration-75" style={{
+                    width: 3, height: 10,
+                    background: vuLevel >= threshold
+                      ? (threshold > 0.8 ? 'var(--danger)' : threshold > 0.6 ? 'var(--warning)' : 'var(--success)')
+                      : 'var(--border)',
+                  }} />
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* Waveform */}
+        <div className="flex-1 relative overflow-hidden py-1 px-1"
+          style={{ opacity: track.muted || (hasSolo && !track.soloed) ? 0.4 : 1 }}>
+          <WaveformCanvas
+            waveformData={track.waveformData || null}
+            currentTime={currentTime} duration={duration} color={color}
+            height={compact ? 28 : 48}
+            loopStart={loopStart} loopEnd={loopEnd} loopEnabled={loopEnabled}
+            muted={track.muted || (hasSolo && !track.soloed)}
+            onSeek={handleSeek} showLoop
+          />
+        </div>
+
+        {/* Supprimer — masqué en compact */}
+        {!compact && (
+          <div className="flex items-center px-1.5 flex-shrink-0">
+            <Button
+              variant="ghost" size="icon"
+              onClick={() => onRemove(track.id)}
+              className="opacity-0 group-hover:opacity-100"
+              style={{ color: 'var(--danger)' } as React.CSSProperties}
+            >
+              <Trash2 size={13} />
+            </Button>
+          </div>
+        )}
       </div>
+
     </div>
   )
 }
