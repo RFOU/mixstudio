@@ -42,6 +42,23 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         {children}
+        {/* Enregistrement Service Worker + auto-refresh quand une nouvelle version arrive */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js').then(function(reg) {
+              reg.addEventListener('updatefound', function() {
+                var newSW = reg.installing;
+                if (newSW) {
+                  newSW.addEventListener('statechange', function() {
+                    if (newSW.state === 'activated' && navigator.serviceWorker.controller) {
+                      window.location.reload();
+                    }
+                  });
+                }
+              });
+            }).catch(function() {});
+          }
+        `}} />
       </body>
     </html>
   );
