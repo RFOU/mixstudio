@@ -1,11 +1,24 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import Script from "next/script";
 
 export const metadata: Metadata = {
   title: "MixStudio — Player Audio Multipiste",
-  description: "Lecteur audio multipiste professionnel avec analyse harmonique et paroles synchronisées",
-};
+  description: "Lecteur audio multipiste professionnel avec paroles synchronisées",
+  applicationName: "MixStudio",
+  appleWebApp: {
+    capable: true,
+    title: "MixStudio",
+    statusBarStyle: "black-translucent",
+  },
+}
+
+export const viewport: Viewport = {
+  themeColor: "#6366f1",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+}
 
 export default function RootLayout({
   children,
@@ -14,22 +27,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr">
-      {/* Script anti-FOUC : applique le thème avant le premier rendu */}
       <head>
+        {/* Anti-FOUC : applique le thème avant le premier rendu */}
         <script dangerouslySetInnerHTML={{ __html: `
           try {
             var t = localStorage.getItem('mixstudio-theme');
             if (t === 'light') document.documentElement.setAttribute('data-theme','light');
           } catch(e) {}
         `}} />
+        {/* Icône iOS */}
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+        {/* Splash screens iOS (optionnel — améliore le démarrage) */}
+        <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body className="antialiased">
         {children}
-        <Script id="register-sw" strategy="afterInteractive">{`
-          if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(() => {});
-          }
-        `}</Script>
       </body>
     </html>
   );

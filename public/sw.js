@@ -1,62 +1,62 @@
 /**
  * MixStudio Service Worker
- * - Caches the app shell (JS/CSS/HTML) for offline support
- * - Audio files are cached separately via the Cache API in audioCache.ts
- *   (the SW does NOT intercept Supabase signed URLs to avoid auth issues)
+ *
+ * Stratégie : Network-first pour les pages, Cache-first pour les assets statiques.
+ * Le but principal est de rendre l'app installable (PWA) et de permettre
+ * un démarrage rapide même avec une connexion lente.
+ *
+ * Note : Les fichiers audio sont gérés par IndexedDB (audioCache.ts), pas par ce SW.
  */
 
-const APP_SHELL_CACHE = 'mixstudio-shell-v1'
+const CACHE_NAME = 'mixstudio-shell-v2'
 
-// App shell resources to pre-cache on SW install
-const APP_SHELL_URLS = [
+const PRECACHE_URLS = [
   '/',
+  '/projects',
+  '/studio',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png',
 ]
 
-// Install: cache the app shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(APP_SHELL_CACHE).then((cache) => cache.addAll(APP_SHELL_URLS))
+    caches.open(CACHE_NAME)
+      .then(cache => cache.addAll(PRECACHE_URLS))
+      .then(() => self.skipWaiting())
   )
-  self.skipWaiting()
 })
 
-// Activate: clean up old shell caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((k) => k.startsWith('mixstudio-shell-') && k !== APP_SHELL_CACHE)
-          .map((k) => caches.delete(k))
-      )
-    )
+    caches.keys()
+      .then(keys => Promise.all(
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
   )
-  self.clients.claim()
 })
 
-// Fetch: serve from cache with network fallback (stale-while-revalidate for shell)
 self.addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url)
+  const { request } = event
+  const url = new URL(request.url)
 
-  // Skip non-GET, cross-origin requests, Supabase API/Storage, and _next/data
+  if (!url.protocol.startsWith('http')) return
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) return
+
   if (
-    event.request.method !== 'GET' ||
-    url.origin !== self.location.origin ||
-    url.pathname.startsWith('/auth/') ||
-    url.pathname.startsWith('/_next/data/')
+    request.destination === 'script' ||
+    request.destination === 'style' ||
+    request.destination === 'image' ||
+    request.destination === 'font'
   ) {
-    return
-  }
-
-  // For Next.js static assets (_next/static/**): cache-first
-  if (url.pathname.startsWith('/_next/static/')) {
     event.respondWith(
-      caches.match(event.request).then((cached) => {
+      caches.match(request).then(cached => {
         if (cached) return cached
-        return fetch(event.request).then((response) => {
+        return fetch(request).then(response => {
           if (response.ok) {
             const clone = response.clone()
-            caches.open(APP_SHELL_CACHE).then((cache) => cache.put(event.request, clone))
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
           return response
         })
@@ -65,19 +65,17 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // For HTML navigation (pages): network-first, fallback to cache
-  if (event.request.mode === 'navigate') {
+  if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
+      fetch(request)
+        .then(response => {
           if (response.ok) {
             const clone = response.clone()
-            caches.open(APP_SHELL_CACHE).then((cache) => cache.put(event.request, clone))
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
           return response
         })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/')))
+        .catch(() => caches.match(request) || caches.match('/'))
     )
-    return
   }
 })
