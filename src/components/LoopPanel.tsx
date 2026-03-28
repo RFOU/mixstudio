@@ -8,7 +8,12 @@ import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { formatTime } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
 
-export function LoopPanel() {
+interface LoopPanelProps {
+  /** N'affiche que la liste des presets (mode mobile + paroles visibles) */
+  presetsOnly?: boolean
+}
+
+export function LoopPanel({ presetsOnly = false }: LoopPanelProps) {
   const {
     loopEnabled, loopStart, loopEnd, loopPresets, duration,
     setLoopEnabled, setLoopPoints, addLoopPreset, removeLoopPreset,
@@ -74,6 +79,40 @@ export function LoopPanel() {
   const hasValidLoop = loopEnd > loopStart && loopEnd <= duration
   const activeLoopField = useAudioStore(s => s.activeLoopField)
   const waitingForPoints = loopEnabled && !hasValidLoop
+
+  // Mode presets uniquement (mobile + paroles visibles)
+  if (presetsOnly) {
+    if (loopPresets.length === 0) return null
+    return (
+      <div
+        className="border-t flex-shrink-0 px-4 py-1.5 flex items-center gap-2 flex-wrap"
+        style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
+      >
+        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Presets:</span>
+        {loopPresets.map(preset => (
+          <div key={preset.id} className="flex items-center gap-1">
+            <button
+              className="text-xs px-2 py-0.5 rounded border transition-colors"
+              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
+              onClick={() => handleLoadPreset(preset.id)}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
+            >
+              {preset.name}
+              <span className="ml-1 opacity-50">({formatTime(preset.endTime - preset.startTime)})</span>
+            </button>
+            <button
+              onClick={() => removeLoopPreset(preset.id)}
+              className="opacity-40 hover:opacity-100 transition-opacity"
+              style={{ color: 'var(--danger)' }}
+            >
+              <Trash2 size={10} />
+            </button>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div

@@ -272,11 +272,18 @@ export function Studio() {
           }
         >
           <MultitrackPanel compact={isMobile && lyricsVisible} />
-          <div className={lyricsVisible ? 'hidden sm:block' : ''}>
+          {/* LoopPanel complet — masqué sur mobile si paroles visibles */}
+          <div className={isMobile && lyricsVisible ? 'hidden' : ''}>
             <LoopPanel />
           </div>
         </div>
-        {lyricsVisible && <LyricsPanel />}
+        {lyricsVisible && (
+          <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+            {/* Presets de boucle en mode mobile + paroles */}
+            {isMobile && <LoopPanel presetsOnly />}
+            <LyricsPanel />
+          </div>
+        )}
       </div>
 
       {/* Loading overlay */}

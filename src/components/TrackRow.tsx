@@ -116,17 +116,15 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
           className="flex flex-col justify-center gap-1 px-2 py-1 flex-shrink-0"
           style={{ width: 'clamp(120px, 28vw, 220px)', borderRight: '1px solid var(--border)' }}
         >
-          {/* Nom — masqué en compact pour gagner de la place */}
-          {!compact && (
-            <input
-              type="text"
-              value={track.name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              className="text-xs font-medium bg-transparent border-none outline-none w-full"
-              style={{ color: 'var(--text)' }}
-              title={projectId ? 'Renommer — sauvegarde auto' : 'Renommer'}
-            />
-          )}
+          {/* Nom — toujours affiché, au-dessus des boutons en mode compact */}
+          <input
+            type="text"
+            value={track.name}
+            onChange={(e) => handleNameChange(e.target.value)}
+            className="text-xs font-medium bg-transparent border-none outline-none w-full truncate"
+            style={{ color: 'var(--text)' }}
+            title={projectId ? 'Renommer — sauvegarde auto' : 'Renommer'}
+          />
 
           <div className="flex items-center gap-1">
             {/* Bouton Mute — rouge vif si actif */}
