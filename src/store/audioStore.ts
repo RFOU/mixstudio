@@ -220,6 +220,10 @@ export const useAudioStore = create<AudioState>()(
     }),
     clearTracks: () => set((state) => {
       state.tracks = []
+      state.loopPresets = []
+      state.loopEnabled = false
+      state.loopStart = 0
+      state.loopEnd = 0
     }),
 
     // Transport actions

@@ -30,6 +30,7 @@ export function Studio() {
     isLoading, loadingMessage, lyricsVisible, projectId, pendingLoad,
     setProject, addTrack, clearTracks, setDuration, setPendingLoad,
     setCurrentTime, setIsPlaying, setLoading, setLyrics, setLyricsVisible,
+    setLoopPoints, setLoopEnabled, addLoopPreset,
   } = useAudioStore()
 
   const engine = getAudioEngine()
@@ -166,8 +167,43 @@ export function Studio() {
       setLyrics(null)
     }
 
+    // Load loop presets
+    const { data: presets } = await supabase
+      .from('loop_presets')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at')
+
+    if (presets && presets.length > 0) {
+      for (const p of presets) {
+        addLoopPreset({
+          id: p.id,
+          name: p.name,
+          startTime: Number(p.start_time),
+          endTime: Number(p.end_time),
+        })
+      }
+    }
+
+    // Load loop state from session
+    const { data: session } = await supabase
+      .from('project_sessions')
+      .select('loop_enabled, loop_start, loop_end')
+      .eq('project_id', projectId)
+      .single()
+
+    if (session) {
+      const start = Number(session.loop_start ?? 0)
+      const end = Number(session.loop_end ?? 0)
+      if (end > start) {
+        setLoopPoints(start, end)
+        setLoopEnabled(session.loop_enabled ?? false)
+        engine.setLoop(session.loop_enabled ?? false, start, end)
+      }
+    }
+
     setLoading(false)
-  }, [engine, supabase, addTrack, setDuration, setLoading, setLyrics, setLyricsVisible])
+  }, [engine, supabase, addTrack, setDuration, setLoading, setLyrics, setLyricsVisible, addLoopPreset, setLoopPoints, setLoopEnabled])
 
   // Keep a stable ref to loadTracks so the pendingLoad effect doesn't re-fire on each render
   const loadTracksRef = useRef(loadTracks)

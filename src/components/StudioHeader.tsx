@@ -19,7 +19,7 @@ interface StudioHeaderProps {
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) {
-  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject, lyrics, setUserRole } = useAudioStore()
+  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject, lyrics, setUserRole, loopPresets, loopEnabled, loopStart, loopEnd } = useAudioStore()
   const { theme, toggle: toggleTheme } = useTheme()
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [role, setRole] = useState<'admin' | 'viewer'>('viewer')
@@ -149,6 +149,33 @@ export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) 
             offset_ms: lyrics.offsetMs,
           })
         }
+      }
+
+      // Sauvegarder les loop presets
+      if (currentProjectId) {
+        // Supprimer les anciens presets puis insérer les actuels
+        await supabase.from('loop_presets').delete().eq('project_id', currentProjectId)
+        if (loopPresets.length > 0) {
+          await supabase.from('loop_presets').insert(
+            loopPresets.map(p => ({
+              id: p.id,
+              project_id: currentProjectId,
+              name: p.name,
+              start_time: p.startTime,
+              end_time: p.endTime,
+            }))
+          )
+        }
+
+        // Sauvegarder l'état de la boucle (position courante)
+        await supabase.from('project_sessions').upsert({
+          project_id: currentProjectId,
+          user_id: user.id,
+          loop_enabled: loopEnabled,
+          loop_start: loopStart,
+          loop_end: loopEnd,
+          last_accessed: new Date().toISOString(),
+        }, { onConflict: 'project_id,user_id' })
       }
 
       setSaveStatus('saved')
