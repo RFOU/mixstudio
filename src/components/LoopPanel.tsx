@@ -97,13 +97,22 @@ export function LoopPanel({ presetsOnly = false }: LoopPanelProps) {
 
   // Mode presets uniquement (mobile + paroles visibles)
   if (presetsOnly) {
-    if (loopPresets.length === 0) return null
+    if (loopPresets.length === 0 && !hasValidLoop && !loopEnabled) return null
     return (
       <div
-        className="border-t flex-shrink-0 px-4 py-1.5 flex items-center gap-2 flex-wrap"
+        className="border-t flex-shrink-0 px-3 py-1.5 flex items-center gap-2 flex-wrap"
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
-        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Presets:</span>
+        {/* Bouton boucle */}
+        <Button
+          variant={loopEnabled ? 'active' : 'ghost'} size="icon"
+          onClick={handleToggleLoop} title="Boucle (L)"
+        >
+          <Repeat size={14} />
+        </Button>
+        {loopPresets.length > 0 && (
+          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Presets:</span>
+        )}
         {loopPresets.map(preset => {
           const active = isPresetActive(preset)
           return (

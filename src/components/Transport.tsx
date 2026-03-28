@@ -210,10 +210,11 @@ export function Transport({ onSave }: TransportProps) {
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Loop */}
+        {/* Loop — masqué sur mobile (déplacé dans LoopPanel) */}
         <Button
           variant={loopEnabled ? 'active' : 'ghost'} size="icon"
           onClick={handleLoopToggle} title="Boucle (L)" disabled={!hasAudio}
+          className="hidden sm:inline-flex"
         >
           <Repeat size={14} />
         </Button>
