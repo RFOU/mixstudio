@@ -31,7 +31,7 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
     setTrackVolume,
     updateTrack,
     setCurrentTime,
-    activeLoopField, setLoopPoints, setLoopEnabled,
+    activeLoopField, setLoopPoints, setLoopEnabled, setActiveLoopField,
   } = useAudioStore()
 
   const engine = getAudioEngine()
@@ -80,19 +80,23 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
     // Si un champ loop (IN/OUT) est actif, alimenter ce champ au lieu de seek
     if (activeLoopField) {
       if (activeLoopField === 'start') {
-        const clamped = Math.max(0, Math.min(time, loopEnd - 0.1))
+        const clamped = Math.max(0, Math.min(time, loopEnd > 0 ? loopEnd - 0.1 : duration))
         setLoopPoints(clamped, loopEnd)
-        engine.setLoop(loopEnabled, clamped, loopEnd)
+        engine.setLoop(loopEnabled && loopEnd > clamped, clamped, loopEnd)
+        // Passer automatiquement au champ OUT
+        setActiveLoopField('end')
       } else {
         const clamped = Math.max(loopStart + 0.1, Math.min(time, duration))
         setLoopPoints(loopStart, clamped)
         engine.setLoop(loopEnabled, loopStart, clamped)
+        // Sélection terminée, désactiver le champ actif
+        setActiveLoopField(null)
       }
       return
     }
     engine.seekTo(time, isPlaying ? tracks : undefined)
     setCurrentTime(time)
-  }, [engine, isPlaying, tracks, setCurrentTime, activeLoopField, loopEnabled, loopStart, loopEnd, duration, setLoopPoints])
+  }, [engine, isPlaying, tracks, setCurrentTime, activeLoopField, loopEnabled, loopStart, loopEnd, duration, setLoopPoints, setActiveLoopField])
 
   const isAudible = !track.muted && (!hasSolo || track.soloed)
   const vuLevel = isAudible && isPlaying ? track.volume : 0

@@ -23,8 +23,13 @@ export function LoopPanel() {
   const handleToggleLoop = useCallback(() => {
     const newEnabled = !loopEnabled
     setLoopEnabled(newEnabled)
-    engine.setLoop(newEnabled, loopStart, loopEnd)
-  }, [engine, loopEnabled, loopStart, loopEnd, setLoopEnabled])
+    const valid = loopEnd > loopStart
+    engine.setLoop(newEnabled && valid, loopStart, loopEnd)
+    // Si on active sans points valides, focus automatique sur IN
+    if (newEnabled && !valid) {
+      setActiveLoopField('start')
+    }
+  }, [engine, loopEnabled, loopStart, loopEnd, setLoopEnabled, setActiveLoopField])
 
   const handleStartChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value) || 0
@@ -67,6 +72,8 @@ export function LoopPanel() {
   }, [engine, loopPresets, isPlaying, tracks, setLoopPoints, setLoopEnabled, setCurrentTime])
 
   const hasValidLoop = loopEnd > loopStart && loopEnd <= duration
+  const activeLoopField = useAudioStore(s => s.activeLoopField)
+  const waitingForPoints = loopEnabled && !hasValidLoop
 
   return (
     <div
@@ -79,7 +86,6 @@ export function LoopPanel() {
           variant={loopEnabled ? 'active' : 'ghost'}
           size="sm"
           onClick={handleToggleLoop}
-          disabled={!hasValidLoop}
         >
           <Repeat size={14} className="mr-1" />
           Boucle
@@ -87,7 +93,7 @@ export function LoopPanel() {
 
         {/* Loop points */}
         <div className="flex items-center gap-2 text-sm">
-          <label className="text-xs" style={{ color: 'var(--text-muted)' }}>IN</label>
+          <label className="text-xs" style={{ color: activeLoopField === 'start' ? 'var(--accent)' : 'var(--text-muted)' }}>IN</label>
           <input
             type="number"
             value={loopStart.toFixed(3)}
@@ -100,7 +106,7 @@ export function LoopPanel() {
             className="w-20 text-xs text-center rounded px-2 py-1 border"
             style={{
               background: 'var(--surface-2)',
-              borderColor: 'var(--border)',
+              borderColor: activeLoopField === 'start' ? 'var(--accent)' : 'var(--border)',
               color: 'var(--text)',
             }}
           />
@@ -110,7 +116,7 @@ export function LoopPanel() {
 
           <span style={{ color: 'var(--text-muted)' }}>→</span>
 
-          <label className="text-xs" style={{ color: 'var(--text-muted)' }}>OUT</label>
+          <label className="text-xs" style={{ color: activeLoopField === 'end' ? 'var(--accent)' : 'var(--text-muted)' }}>OUT</label>
           <input
             type="number"
             value={loopEnd.toFixed(3)}
@@ -123,7 +129,7 @@ export function LoopPanel() {
             className="w-20 text-xs text-center rounded px-2 py-1 border"
             style={{
               background: 'var(--surface-2)',
-              borderColor: 'var(--border)',
+              borderColor: activeLoopField === 'end' ? 'var(--accent)' : 'var(--border)',
               color: 'var(--text)',
             }}
           />
@@ -134,6 +140,11 @@ export function LoopPanel() {
           {hasValidLoop && (
             <span className="text-xs" style={{ color: 'var(--accent)' }}>
               Durée: {formatTime(loopEnd - loopStart)}
+            </span>
+          )}
+          {waitingForPoints && (
+            <span className="text-xs animate-pulse" style={{ color: 'var(--accent)' }}>
+              Cliquez sur la timeline
             </span>
           )}
         </div>
