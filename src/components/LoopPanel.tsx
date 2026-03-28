@@ -65,20 +65,35 @@ export function LoopPanel({ presetsOnly = false }: LoopPanelProps) {
   const handleLoadPreset = useCallback((id: string) => {
     const preset = loopPresets.find(p => p.id === id)
     if (!preset) return
+
+    // Toggle : si ce preset est déjà actif, on désactive la boucle
+    const isActive = loopEnabled
+      && Math.abs(loopStart - preset.startTime) < 0.001
+      && Math.abs(loopEnd - preset.endTime) < 0.001
+    if (isActive) {
+      setLoopEnabled(false)
+      engine.setLoop(false, preset.startTime, preset.endTime)
+      return
+    }
+
     setLoopPoints(preset.startTime, preset.endTime)
     setLoopEnabled(true)
     engine.setLoop(true, preset.startTime, preset.endTime)
-    // Seek to loop start
     engine.seekTo(preset.startTime)
     setCurrentTime(preset.startTime)
     if (isPlaying) {
       setTimeout(() => { engine.play(tracks, preset.startTime) }, 10)
     }
-  }, [engine, loopPresets, isPlaying, tracks, setLoopPoints, setLoopEnabled, setCurrentTime])
+  }, [engine, loopPresets, loopEnabled, loopStart, loopEnd, isPlaying, tracks, setLoopPoints, setLoopEnabled, setCurrentTime])
 
   const hasValidLoop = loopEnd > loopStart && loopEnd <= duration
   const activeLoopField = useAudioStore(s => s.activeLoopField)
   const waitingForPoints = loopEnabled && !hasValidLoop
+
+  const isPresetActive = (preset: { startTime: number; endTime: number }) =>
+    loopEnabled
+    && Math.abs(loopStart - preset.startTime) < 0.001
+    && Math.abs(loopEnd - preset.endTime) < 0.001
 
   // Mode presets uniquement (mobile + paroles visibles)
   if (presetsOnly) {
@@ -89,27 +104,34 @@ export function LoopPanel({ presetsOnly = false }: LoopPanelProps) {
         style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}
       >
         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Presets:</span>
-        {loopPresets.map(preset => (
-          <div key={preset.id} className="flex items-center gap-1">
-            <button
-              className="text-xs px-2 py-0.5 rounded border transition-colors"
-              style={{ background: 'var(--surface-2)', borderColor: 'var(--border)', color: 'var(--text)' }}
-              onClick={() => handleLoadPreset(preset.id)}
-              onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
-            >
-              {preset.name}
-              <span className="ml-1 opacity-50">({formatTime(preset.endTime - preset.startTime)})</span>
-            </button>
-            <button
-              onClick={() => removeLoopPreset(preset.id)}
-              className="opacity-40 hover:opacity-100 transition-opacity"
-              style={{ color: 'var(--danger)' }}
-            >
-              <Trash2 size={10} />
-            </button>
-          </div>
-        ))}
+        {loopPresets.map(preset => {
+          const active = isPresetActive(preset)
+          return (
+            <div key={preset.id} className="flex items-center gap-1">
+              <button
+                className="text-xs px-2 py-0.5 rounded border transition-colors"
+                style={{
+                  background: active ? 'var(--accent)' : 'var(--surface-2)',
+                  borderColor: active ? 'var(--accent)' : 'var(--border)',
+                  color: active ? '#fff' : 'var(--text)',
+                }}
+                onClick={() => handleLoadPreset(preset.id)}
+                onMouseEnter={(e) => { if (!active) e.currentTarget.style.borderColor = 'var(--accent)' }}
+                onMouseLeave={(e) => { if (!active) e.currentTarget.style.borderColor = 'var(--border)' }}
+              >
+                {preset.name}
+                <span className="ml-1 opacity-70">({formatTime(preset.endTime - preset.startTime)})</span>
+              </button>
+              <button
+                onClick={() => removeLoopPreset(preset.id)}
+                className="opacity-40 hover:opacity-100 transition-opacity"
+                style={{ color: 'var(--danger)' }}
+              >
+                <Trash2 size={10} />
+              </button>
+            </div>
+          )
+        })}
       </div>
     )
   }
@@ -229,33 +251,36 @@ export function LoopPanel({ presetsOnly = false }: LoopPanelProps) {
       {loopPresets.length > 0 && (
         <div className="flex items-center gap-2 px-4 pb-2 flex-wrap">
           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>Presets:</span>
-          {loopPresets.map(preset => (
-            <div key={preset.id} className="flex items-center gap-1">
-              <button
-                className="text-xs px-2 py-0.5 rounded border transition-colors"
-                style={{
-                  background: 'var(--surface-2)',
-                  borderColor: 'var(--border)',
-                  color: 'var(--text)',
-                }}
-                onClick={() => handleLoadPreset(preset.id)}
-                onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'var(--accent)' }}
-                onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border)' }}
-              >
-                {preset.name}
-                <span className="ml-1 opacity-50">
-                  ({formatTime(preset.endTime - preset.startTime)})
-                </span>
-              </button>
-              <button
-                onClick={() => removeLoopPreset(preset.id)}
-                className="opacity-40 hover:opacity-100 transition-opacity"
-                style={{ color: 'var(--danger)' }}
-              >
-                <Trash2 size={10} />
-              </button>
-            </div>
-          ))}
+          {loopPresets.map(preset => {
+            const active = isPresetActive(preset)
+            return (
+              <div key={preset.id} className="flex items-center gap-1">
+                <button
+                  className="text-xs px-2 py-0.5 rounded border transition-colors"
+                  style={{
+                    background: active ? 'var(--accent)' : 'var(--surface-2)',
+                    borderColor: active ? 'var(--accent)' : 'var(--border)',
+                    color: active ? '#fff' : 'var(--text)',
+                  }}
+                  onClick={() => handleLoadPreset(preset.id)}
+                  onMouseEnter={(e) => { if (!active) e.currentTarget.style.borderColor = 'var(--accent)' }}
+                  onMouseLeave={(e) => { if (!active) e.currentTarget.style.borderColor = 'var(--border)' }}
+                >
+                  {preset.name}
+                  <span className="ml-1 opacity-70">
+                    ({formatTime(preset.endTime - preset.startTime)})
+                  </span>
+                </button>
+                <button
+                  onClick={() => removeLoopPreset(preset.id)}
+                  className="opacity-40 hover:opacity-100 transition-opacity"
+                  style={{ color: 'var(--danger)' }}
+                >
+                  <Trash2 size={10} />
+                </button>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
