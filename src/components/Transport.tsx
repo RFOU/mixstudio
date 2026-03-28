@@ -21,6 +21,7 @@ export function Transport({ onSave }: TransportProps) {
     tracks, zoomLevel, projectName,
     setIsPlaying, setCurrentTime, setDuration,
     setLoopEnabled, setZoomLevel,
+    activeLoopField, setLoopPoints,
   } = useAudioStore()
 
   const engine = getAudioEngine()
@@ -121,6 +122,18 @@ export function Transport({ onSave }: TransportProps) {
         const rect = e.currentTarget.getBoundingClientRect()
         const ratio = (e.clientX - rect.left) / rect.width
         const newTime = ratio * duration
+        if (activeLoopField) {
+          if (activeLoopField === 'start') {
+            const clamped = Math.max(0, Math.min(newTime, loopEnd - 0.1))
+            setLoopPoints(clamped, loopEnd)
+            engine.setLoop(loopEnabled, clamped, loopEnd)
+          } else {
+            const clamped = Math.max(loopStart + 0.1, Math.min(newTime, duration))
+            setLoopPoints(loopStart, clamped)
+            engine.setLoop(loopEnabled, loopStart, clamped)
+          }
+          return
+        }
         engine.seekTo(newTime, isPlaying ? tracks : undefined)
         setCurrentTime(newTime)
       }}

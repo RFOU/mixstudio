@@ -13,6 +13,7 @@ export function LoopPanel() {
     loopEnabled, loopStart, loopEnd, loopPresets, duration,
     setLoopEnabled, setLoopPoints, addLoopPreset, removeLoopPreset,
     tracks, isPlaying, setIsPlaying, setCurrentTime,
+    setActiveLoopField,
   } = useAudioStore()
 
   const engine = getAudioEngine()
@@ -91,6 +92,8 @@ export function LoopPanel() {
             type="number"
             value={loopStart.toFixed(3)}
             onChange={handleStartChange}
+            onFocus={() => setActiveLoopField('start')}
+            onBlur={() => setTimeout(() => setActiveLoopField(null), 200)}
             min={0}
             max={duration}
             step={0.001}
@@ -112,6 +115,8 @@ export function LoopPanel() {
             type="number"
             value={loopEnd.toFixed(3)}
             onChange={handleEndChange}
+            onFocus={() => setActiveLoopField('end')}
+            onBlur={() => setTimeout(() => setActiveLoopField(null), 200)}
             min={0}
             max={duration}
             step={0.001}

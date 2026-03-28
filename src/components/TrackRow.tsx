@@ -31,6 +31,7 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
     setTrackVolume,
     updateTrack,
     setCurrentTime,
+    activeLoopField, setLoopPoints, setLoopEnabled,
   } = useAudioStore()
 
   const engine = getAudioEngine()
@@ -76,9 +77,22 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
   }, [engine, track, setTrackVolume])
 
   const handleSeek = useCallback((time: number) => {
+    // Si un champ loop (IN/OUT) est actif, alimenter ce champ au lieu de seek
+    if (activeLoopField) {
+      if (activeLoopField === 'start') {
+        const clamped = Math.max(0, Math.min(time, loopEnd - 0.1))
+        setLoopPoints(clamped, loopEnd)
+        engine.setLoop(loopEnabled, clamped, loopEnd)
+      } else {
+        const clamped = Math.max(loopStart + 0.1, Math.min(time, duration))
+        setLoopPoints(loopStart, clamped)
+        engine.setLoop(loopEnabled, loopStart, clamped)
+      }
+      return
+    }
     engine.seekTo(time, isPlaying ? tracks : undefined)
     setCurrentTime(time)
-  }, [engine, isPlaying, tracks, setCurrentTime])
+  }, [engine, isPlaying, tracks, setCurrentTime, activeLoopField, loopEnabled, loopStart, loopEnd, duration, setLoopPoints])
 
   const isAudible = !track.muted && (!hasSolo || track.soloed)
   const vuLevel = isAudible && isPlaying ? track.volume : 0

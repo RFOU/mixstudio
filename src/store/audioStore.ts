@@ -93,6 +93,7 @@ interface AudioState {
   loopStart: number
   loopEnd: number
   loopPresets: LoopPreset[]
+  activeLoopField: 'start' | 'end' | null
 
   // Lyrics
   lyrics: LyricsData | null
@@ -132,6 +133,7 @@ interface AudioState {
   setLoopPoints: (start: number, end: number) => void
   addLoopPreset: (preset: LoopPreset) => void
   removeLoopPreset: (id: string) => void
+  setActiveLoopField: (field: 'start' | 'end' | null) => void
 
   // Actions - Lyrics
   setLyrics: (lyrics: LyricsData | null) => void
@@ -161,6 +163,7 @@ export const useAudioStore = create<AudioState>()(
     loopStart: 0,
     loopEnd: 0,
     loopPresets: [],
+    activeLoopField: null,
 
     lyrics: null,
     lyricsVisible: true,
@@ -246,6 +249,9 @@ export const useAudioStore = create<AudioState>()(
     }),
     removeLoopPreset: (id) => set((state) => {
       state.loopPresets = state.loopPresets.filter(p => p.id !== id)
+    }),
+    setActiveLoopField: (field) => set((state) => {
+      state.activeLoopField = field
     }),
 
     // Lyrics actions
