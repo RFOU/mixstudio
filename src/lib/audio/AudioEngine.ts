@@ -10,8 +10,44 @@ interface TrackNode {
   muteGainNode: GainNode
 }
 
-type EngineEventType = 'timeupdate' | 'ended' | 'looped'
+type EngineEventType = 'timeupdate' | 'ended' | 'looped' | 'mediasessionplay' | 'mediasessionpause'
 type EngineEventCallback = (data?: { time?: number }) => void
+
+// WAV silencieux 1s mono 8kHz 16-bit — empêche iOS/Android de suspendre la session audio
+function createSilentAudioElement(): HTMLAudioElement | null {
+  if (typeof document === 'undefined') return null
+  // Minimal WAV: 44-byte header + 8000 samples of silence (16000 bytes)
+  const sampleRate = 8000
+  const numSamples = sampleRate // 1 seconde
+  const dataSize = numSamples * 2
+  const buffer = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(buffer)
+  // RIFF header
+  const writeString = (offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i))
+  }
+  writeString(0, 'RIFF')
+  view.setUint32(4, 36 + dataSize, true)
+  writeString(8, 'WAVE')
+  writeString(12, 'fmt ')
+  view.setUint32(16, 16, true) // chunk size
+  view.setUint16(20, 1, true)  // PCM
+  view.setUint16(22, 1, true)  // mono
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true) // byte rate
+  view.setUint16(32, 2, true)  // block align
+  view.setUint16(34, 16, true) // bits per sample
+  writeString(36, 'data')
+  view.setUint32(40, dataSize, true)
+  // samples are all 0 (silence) — ArrayBuffer is zeroed by default
+
+  const blob = new Blob([buffer], { type: 'audio/wav' })
+  const audio = document.createElement('audio')
+  audio.src = URL.createObjectURL(blob)
+  audio.loop = true
+  audio.volume = 0.01 // quasi-inaudible
+  return audio
+}
 
 export class AudioEngine {
   private context: AudioContext | null = null
@@ -33,10 +69,80 @@ export class AudioEngine {
 
   private listeners: Map<EngineEventType, Set<EngineEventCallback>> = new Map()
 
+  // Background playback: silent audio element keeps the OS audio session alive
+  private silentAudio: HTMLAudioElement | null = null
+  private visibilityHandler: (() => void) | null = null
+  // Tracks ref for Media Session seek (needs current track list)
+  private currentTracks: TrackData[] = []
+
   constructor() {
     this.listeners.set('timeupdate', new Set())
     this.listeners.set('ended', new Set())
     this.listeners.set('looped', new Set())
+    this.listeners.set('mediasessionplay', new Set())
+    this.listeners.set('mediasessionpause', new Set())
+    this.silentAudio = createSilentAudioElement()
+    this.setupVisibilityHandler()
+  }
+
+  /** Relance le contexte audio si suspendu après verrouillage écran */
+  private setupVisibilityHandler() {
+    if (typeof document === 'undefined') return
+    this.visibilityHandler = () => {
+      if (document.visibilityState === 'visible' && this.isPlaying && this.context) {
+        if (this.context.state === 'suspended') {
+          this.context.resume()
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', this.visibilityHandler)
+  }
+
+  /** Démarre l'élément audio silencieux pour maintenir la session audio du navigateur */
+  private startSilentAudio() {
+    if (!this.silentAudio) return
+    this.silentAudio.play().catch(() => {})
+  }
+
+  private stopSilentAudio() {
+    if (!this.silentAudio) return
+    this.silentAudio.pause()
+    this.silentAudio.currentTime = 0
+  }
+
+  /** Met à jour les métadonnées Media Session (contrôles écran de verrouillage) */
+  private updateMediaSession(playing: boolean) {
+    if (typeof navigator === 'undefined' || !('mediaSession' in navigator)) return
+    const ms = navigator.mediaSession
+
+    if (playing) {
+      ms.metadata = new MediaMetadata({
+        title: 'MixStudio',
+        artist: 'Lecture en cours',
+      })
+      ms.playbackState = 'playing'
+
+      ms.setActionHandler('play', () => {
+        if (!this.isPlaying) {
+          this.play(this.currentTracks, this.startOffset)
+          this.emit('mediasessionplay')
+        }
+      })
+      ms.setActionHandler('pause', () => {
+        if (this.isPlaying) {
+          this.pause()
+          this.emit('mediasessionpause')
+        }
+      })
+      ms.setActionHandler('seekto', (details) => {
+        if (details.seekTime != null) {
+          this.seekTo(details.seekTime, this.isPlaying ? this.currentTracks : undefined)
+          this.emit('timeupdate', { time: details.seekTime })
+        }
+      })
+    } else {
+      ms.playbackState = 'paused'
+    }
   }
 
   private ensureContext(): AudioContext {
@@ -181,6 +287,7 @@ export class AudioEngine {
     this.startTime = ctx.currentTime
     this.startOffset = offset
     this.isPlaying = true
+    this.currentTracks = tracks
 
     // Update soloed tracks
     this.soloedTracks = new Set(tracks.filter(t => t.soloed).map(t => t.id))
@@ -194,6 +301,8 @@ export class AudioEngine {
     })
 
     this.startTimeUpdateLoop()
+    this.startSilentAudio()
+    this.updateMediaSession(true)
   }
 
   pause() {
@@ -205,6 +314,8 @@ export class AudioEngine {
     this.isPlaying = false
     this.stopAllSources()
     this.stopTimeUpdateLoop()
+    this.stopSilentAudio()
+    this.updateMediaSession(false)
   }
 
   stop() {
@@ -212,6 +323,8 @@ export class AudioEngine {
     this.isPlaying = false
     this.stopAllSources()
     this.stopTimeUpdateLoop()
+    this.stopSilentAudio()
+    this.updateMediaSession(false)
     this.emit('timeupdate', { time: 0 })
   }
 
@@ -417,6 +530,10 @@ export class AudioEngine {
   destroy() {
     this.stopAllSources()
     this.stopTimeUpdateLoop()
+    this.stopSilentAudio()
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler)
+    }
     if (this.context && this.context.state !== 'closed') {
       this.context.close()
     }

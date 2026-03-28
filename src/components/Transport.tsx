@@ -28,7 +28,7 @@ export function Transport({ onSave }: TransportProps) {
   // hasAudio: vérifie le moteur (source de vérité) ET le store comme fallback
   const hasAudio = tracks.length > 0 && (engine.getDuration() > 0 || tracks.some(t => t.storagePath || t.duration))
 
-  // Sync engine events
+  // Sync engine events (including Media Session remote controls)
   useEffect(() => {
     const onTimeUpdate = (data?: { time?: number }) => {
       if (data?.time !== undefined) setCurrentTime(data.time)
@@ -37,12 +37,18 @@ export function Transport({ onSave }: TransportProps) {
       setIsPlaying(false)
       setCurrentTime(0)
     }
+    const onMediaPlay = () => setIsPlaying(true)
+    const onMediaPause = () => setIsPlaying(false)
 
     engine.on('timeupdate', onTimeUpdate)
     engine.on('ended', onEnded)
+    engine.on('mediasessionplay', onMediaPlay)
+    engine.on('mediasessionpause', onMediaPause)
     return () => {
       engine.off('timeupdate', onTimeUpdate)
       engine.off('ended', onEnded)
+      engine.off('mediasessionplay', onMediaPlay)
+      engine.off('mediasessionpause', onMediaPause)
     }
   }, [engine, setCurrentTime, setIsPlaying])
 
