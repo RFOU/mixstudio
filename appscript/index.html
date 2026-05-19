@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Card V2 Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+:root{--bg:#f6f4f1;--surface:#fff;--surface-2:#faf8f5;--surface-3:#ecebe6;--border:#e3e0da;--border-strong:#c9c5bd;--text:#1f1e1c;--text-2:#5a5853;--text-3:#8a8780;--accent:oklch(0.55 0.18 285);--accent-2:oklch(0.65 0.18 285);--accent-bg:oklch(0.95 0.04 285);--accent-text:oklch(0.35 0.18 285);--ok:oklch(0.55 0.14 155);--warn:oklch(0.65 0.16 60);--err:oklch(0.55 0.20 25);--shadow-1:0 1px 2px rgba(31,30,28,.04),0 1px 3px rgba(31,30,28,.06);--shadow-2:0 2px 4px rgba(31,30,28,.06),0 6px 16px rgba(31,30,28,.08);--shadow-3:0 10px 30px rgba(31,30,28,.10),0 30px 60px rgba(31,30,28,.08);--radius:10px;--radius-lg:14px;--font-ui:'DM Sans',system-ui,sans-serif;--font-mono:'JetBrains Mono',ui-monospace,monospace}
+*{box-sizing:border-box}html,body{margin:0;padding:0;font-family:var(--font-ui);color:var(--text);background:var(--bg);height:100%}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 14px;border-radius:var(--radius);font-family:var(--font-ui);font-size:13px;font-weight:500;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);cursor:pointer;transition:all .15s ease;white-space:nowrap}
+.btn:hover{border-color:var(--text-3);box-shadow:var(--shadow-1)}.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}.btn.primary:hover{background:var(--accent-2);box-shadow:var(--shadow-2)}.btn.ghost{border-color:transparent;background:transparent}.btn.ghost:hover{background:var(--surface-3)}.btn.danger{color:var(--err);border-color:transparent;background:transparent}.btn.danger:hover{background:oklch(0.96 0.04 25)}.btn.sm{padding:5px 10px;font-size:12px}.btn.icon{width:28px;height:28px;padding:0}.btn:disabled{opacity:.4;cursor:not-allowed}
+.input,.select,.textarea{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);font-family:var(--font-ui);font-size:13px;color:var(--text);transition:border-color .15s,box-shadow .15s}
+.input:focus,.select:focus,.textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px oklch(0.55 0.18 285/.15)}.textarea{resize:vertical;min-height:100px;font-family:var(--font-mono);font-size:12px;line-height:1.5}
+.label{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em}.kbd{font-family:var(--font-mono);font-size:11px;padding:2px 6px;border-radius:4px;background:var(--surface-3);color:var(--text-2)}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:500;background:var(--surface-3);color:var(--text-2)}.chip.accent{background:var(--accent-bg);color:var(--accent-text)}.chip.ok{background:oklch(0.95 0.04 155);color:var(--ok)}.chip.err{background:oklch(0.95 0.04 25);color:var(--err)}.chip.warn{background:oklch(0.96 0.04 60);color:var(--warn)}
+.row{display:flex;align-items:center;gap:8px}.col{display:flex;flex-direction:column;gap:8px}.spacer{flex:1}.mono{font-family:var(--font-mono)}.muted{color:var(--text-3)}.small{font-size:11px}.scroll{overflow:auto}.scroll::-webkit-scrollbar{width:8px;height:8px}.scroll::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}.scroll::-webkit-scrollbar-track{background:transparent}
+.brand-strip{height:3px;background:linear-gradient(90deg,oklch(0.55 0.18 285) 0%,oklch(0.60 0.16 240) 50%,oklch(0.65 0.14 195) 100%)}
+/* Card preview */
+.cv-bubble{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;max-width:720px}
+.cv-avatar{flex-shrink:0;width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;box-shadow:var(--shadow-1)}
+.cv-bubble-body{flex:1;min-width:0}.cv-bubble-meta{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}.cv-bubble-sender{font-weight:600;font-size:13.5px;color:var(--text)}.cv-bubble-time{font-size:11.5px;color:var(--text-3)}
+.cv-bubble-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:0;overflow:hidden;box-shadow:0 1px 3px rgba(31,30,28,.04),0 4px 12px rgba(31,30,28,.06);max-width:640px}
+.cv-reactions{display:flex;align-items:center;gap:6px;margin-top:8px}.cv-rx{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:var(--surface);font-size:12px;cursor:pointer;color:var(--text);font-family:var(--font-ui)}.cv-rx:hover{background:var(--surface-2)}.cv-rx-n{font-weight:600}.cv-rx-add{padding:4px 8px;color:var(--text-3)}
+.cv-header{padding:16px 20px;display:flex;align-items:flex-start;gap:14px;background:var(--surface)}.cv-header-img{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:transparent;color:var(--text);overflow:hidden}.cv-header-img img{width:100%;height:100%;object-fit:cover;border-radius:50%}.cv-header-text{padding-top:2px}.cv-header-title{font-weight:600;font-size:15px;color:var(--text);line-height:1.3;letter-spacing:.005em}.cv-header-sub{font-size:12.5px;color:var(--text-2);margin-top:4px}
+.cv-section{padding:8px 0 14px}.cv-section+.cv-section{border-top:1px solid var(--border);padding-top:14px}.cv-section-h{padding:6px 20px 8px;font-size:14px;font-weight:600;color:var(--text);letter-spacing:.005em}
+.cv-w{padding:4px 20px;font-size:13.5px;line-height:1.5;color:var(--text)}.cv-text{white-space:pre-wrap}
+.cv-dec{display:flex;align-items:flex-start;gap:10px;padding:8px 20px}.cv-dec-icon{flex-shrink:0;width:22px;height:22px;display:flex;align-items:center;justify-content:center;color:var(--text);font-size:16px;margin-top:2px}.cv-dec-body{flex:1;min-width:0}.cv-dec-top{font-size:12px;color:var(--text-2);margin-bottom:2px}.cv-dec-text{font-size:13.5px;color:var(--text);line-height:1.4}.cv-dec-text strong{font-weight:600}.cv-dec-bottom{font-size:13px;color:var(--text-2);margin-top:4px;line-height:1.5}
+.cv-img{padding:0}.cv-img img{width:100%;display:block}.cv-img-placeholder{width:100%;height:120px;background:repeating-linear-gradient(45deg,var(--surface-2),var(--surface-2) 8px,var(--surface-3) 8px,var(--surface-3) 16px);display:flex;align-items:center;justify-content:center;color:var(--text-3);font-family:var(--font-mono);font-size:11px}
+.cv-divider{padding:0;height:1px;background:var(--border);margin:6px 20px}
+.cv-btns{display:flex;flex-wrap:wrap;gap:6px;padding:10px 16px 14px}.cv-btn{padding:6px 14px;border-radius:6px;border:1px solid var(--border-strong);background:var(--surface);color:var(--accent-text);font-family:var(--font-ui);font-size:12px;font-weight:500;cursor:pointer}.cv-btn:hover{background:var(--accent-bg);border-color:var(--accent)}
+.cv-cols{display:flex;gap:12px;padding:8px 16px}.cv-col{flex:1}.cv-empty{padding:24px;text-align:center;color:var(--text-3);font-size:12px}
+.cv-json{font-family:var(--font-mono);font-size:11.5px;line-height:1.55;color:var(--text);background:var(--surface-2);padding:14px 16px;border-radius:var(--radius);margin:0;overflow:auto;white-space:pre;tab-size:2}.cv-json .jk{color:oklch(0.45 0.16 285)}.cv-json .js{color:oklch(0.45 0.14 155)}.cv-json .jb{color:oklch(0.55 0.16 25)}.cv-json .jn{color:oklch(0.55 0.16 60)}
+.toast-stack{position:fixed;top:16px;right:16px;z-index:1000;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;box-shadow:var(--shadow-3);display:flex;align-items:center;gap:10px;font-size:13px;animation:toastIn .2s ease-out;pointer-events:auto;min-width:240px}.toast.ok{border-left:3px solid var(--ok)}.toast.err{border-left:3px solid var(--err)}
+@keyframes toastIn{from{transform:translateY(-8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal-bg{position:fixed;inset:0;background:rgba(31,30,28,.45);display:flex;align-items:center;justify-content:center;z-index:500;animation:fadeIn .18s ease}
+.modal{background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-3);max-width:480px;width:calc(100% - 64px);overflow:hidden;animation:modalIn .2s ease}.modal-h{padding:18px 20px 8px;border-bottom:1px solid var(--border)}.modal-h h3{margin:0;font-size:16px;font-weight:600}.modal-h p{margin:4px 0 0;color:var(--text-2);font-size:12px}.modal-b{padding:16px 20px;max-height:60vh;overflow:auto}.modal-f{padding:12px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px;background:var(--surface-2)}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes modalIn{from{transform:translateY(8px) scale(.98);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+/* Workspace */
+.ws-root{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}.ws-top{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--surface)}.ws-brand{display:flex;align-items:center;gap:12px}.ws-logo{width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,var(--accent),oklch(0.55 0.18 240));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;box-shadow:var(--shadow-1)}.ws-title{font-weight:600;font-size:15px}.ws-sub{font-size:11px;color:var(--text-3)}.ws-main{flex:1;display:grid;grid-template-columns:280px 1fr 460px;min-height:0}
+.ws-left{border-right:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0}.ws-pane-h{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}.ws-search{padding:10px 12px;border-bottom:1px solid var(--border)}.ws-group-h{padding:12px 16px 6px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)}.ws-list{display:flex;flex-direction:column;padding:0 8px 6px}
+.ws-hook{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;margin-bottom:2px;border:1px solid transparent}.ws-hook:hover{background:var(--surface-2)}.ws-hook.on{background:var(--accent-bg);border-color:oklch(0.55 0.18 285/.25)}.ws-hook-body{flex:1;min-width:0}.ws-hook-name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ws-hook-meta{font-size:11px;color:var(--text-3);margin-top:1px}
+.ws-history{margin-top:8px;border-top:1px solid var(--border);padding-top:4px;overflow:auto}.ws-hist-row{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;margin:0 8px 2px}.ws-hist-row:hover{background:var(--surface-2)}.ws-hist-dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0}.ws-hist-dot.failed{background:var(--err)}.ws-hist-body{flex:1;min-width:0}.ws-hist-title{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ws-hist-meta{font-size:10.5px;color:var(--text-3);display:flex;gap:4px}
+.ws-center{display:flex;flex-direction:column;min-width:0}.ws-tabs{display:flex;align-items:center;gap:4px;padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface)}.ws-tab{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;border:1px solid transparent;background:transparent;font-family:var(--font-ui);font-size:13px;font-weight:500;color:var(--text-2);cursor:pointer}.ws-tab:hover{background:var(--surface-2)}.ws-tab.on{background:var(--accent-bg);color:var(--accent-text)}.ws-tab-num{width:20px;height:20px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}.ws-tab.on .ws-tab-num{background:var(--accent);color:#fff}.ws-pad{padding:20px 24px;flex:1;min-height:0}
+.ws-right{border-left:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;min-height:0}.ws-preview{flex:1;padding:20px;background:var(--surface-2)}.ws-preview-note{display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:8px;background:var(--surface);border:1px dashed var(--border-strong);font-size:11.5px;color:var(--text-2);margin-top:12px}.ws-actions{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;background:var(--surface)}
+.builder-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;box-shadow:var(--shadow-1)}.builder-card-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:8px}.seg-btn{padding:12px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface-2);cursor:pointer;text-align:left;font-family:var(--font-ui);transition:all .15s ease}.seg-btn:hover{border-color:var(--text-3)}.seg-btn.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent-text)}
+.block{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}.block-h{display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;border-bottom:1px solid transparent}.block-h:hover{background:var(--surface-3)}.block-num{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}.block-type{font-size:13px;font-weight:600}.block-preview{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px}.block-b{padding:10px;background:var(--surface)}.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.empty-state{padding:24px;text-align:center;color:var(--text-3);font-size:12px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--surface-2)}
+.data-table-wrap{border:1px solid var(--border);border-radius:var(--radius);background:var(--surface);max-height:280px}.data-table{width:100%;border-collapse:collapse;font-size:12px}.data-table th{text-align:left;padding:8px 12px;background:var(--surface-2);border-bottom:1px solid var(--border);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-2);position:sticky;top:0}.data-table td{padding:7px 12px;border-bottom:1px solid var(--border);color:var(--text)}.data-table tr:last-child td{border-bottom:none}.data-table tr:hover td{background:var(--surface-2)}
+.recap{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}.recap-row{display:flex;justify-content:space-between;gap:12px;padding:6px 10px;background:var(--surface-2);border-radius:6px;font-size:12.5px}.recap-preview{border-top:1px dashed var(--border);padding-top:14px}
+/* Wizard */
+.wz-root{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}.wz-top{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid var(--border);background:var(--surface)}.wz-stepper{display:flex;align-items:center;padding:24px 32px;background:var(--surface);border-bottom:1px solid var(--border)}.wz-step{display:flex;align-items:center;gap:12px;border:none;background:transparent;font-family:var(--font-ui);cursor:pointer;padding:6px 10px;border-radius:8px;transition:background .15s ease}.wz-step:disabled{cursor:not-allowed;opacity:.5}.wz-step:hover:not(:disabled){background:var(--surface-2)}.wz-step-num{width:32px;height:32px;border-radius:50%;background:var(--surface-3);color:var(--text-2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0;transition:all .2s ease}.wz-step.on .wz-step-num{background:var(--accent);color:#fff;box-shadow:0 0 0 4px var(--accent-bg)}.wz-step.done .wz-step-num{background:var(--ok);color:#fff}.wz-step-title{font-size:13px;font-weight:600;color:var(--text-2);text-align:left}.wz-step.on .wz-step-title{color:var(--text)}.wz-step-sub{font-size:11px;color:var(--text-3);margin-top:1px;text-align:left}.wz-step-line{flex:1;height:2px;background:var(--border);margin:0 12px;min-width:24px;transition:background .2s ease}.wz-step-line.done{background:var(--ok)}
+.wz-content{flex:1;overflow:auto}.wz-step-content{max-width:980px;margin:0 auto;padding:32px}.wz-h{margin:0 0 4px;font-size:22px;font-weight:600}.wz-p{margin:0 0 24px;color:var(--text-2);font-size:14px}.wz-nav{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-top:1px solid var(--border);background:var(--surface)}.wz-nav-count{font-size:12px;color:var(--text-3)}
+.wz-hook-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-bottom:24px}.wz-hook-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px;cursor:pointer;text-align:left;font-family:var(--font-ui);transition:all .15s ease}.wz-hook-card:hover{border-color:var(--text-3);box-shadow:var(--shadow-1)}.wz-hook-card.on{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px oklch(0.55 0.18 285/.12)}.wz-hook-card-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.wz-hook-card-name{font-size:14px;font-weight:600}.wz-hook-card-url{font-size:11px;color:var(--text-3);margin-bottom:8px;word-break:break-all}.wz-hook-card-meta{display:flex;justify-content:space-between;align-items:center}.wz-add-hook{background:var(--surface-2);border:1px dashed var(--border-strong);border-radius:var(--radius-lg);padding:14px}
+.wz-data-split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.wz-template-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-bottom:24px}.wz-template{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;cursor:pointer;text-align:left;font-family:var(--font-ui);transition:all .15s ease}.wz-template:hover{border-color:var(--text-3);box-shadow:var(--shadow-1)}.wz-template.on{border-color:var(--accent);background:var(--accent-bg);box-shadow:0 0 0 3px oklch(0.55 0.18 285/.12)}.wz-template-icon{font-size:24px;margin-bottom:8px}.wz-template-name{font-size:14px;font-weight:600;margin-bottom:2px}.wz-template-desc{font-size:11.5px;color:var(--text-3)}
+.wz-card-edit{display:grid;grid-template-columns:1fr 1.2fr;gap:24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:20px}.wz-card-preview{background:var(--surface-2);border:1px dashed var(--border);border-radius:var(--radius);padding:16px;max-height:380px;overflow:auto}
+.wz-recap-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px}.wz-recap-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}.wz-recap-label{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3);margin-bottom:6px}.wz-recap-value{font-size:15px}.wz-final-preview{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-height:360px;overflow:auto}
+.wz-done{max-width:480px;margin:64px auto;display:flex;flex-direction:column;align-items:center;text-align:center}.wz-done-check{width:72px;height:72px;border-radius:50%;background:oklch(0.95 0.04 155);color:var(--ok);display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:600;margin-bottom:16px;box-shadow:0 0 0 8px oklch(0.97 0.02 155)}.wz-done-recap{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;display:flex;flex-direction:column;gap:8px}.wz-done-recap>div{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dashed var(--border)}.wz-done-recap>div:last-child{border-bottom:none}
+/* Notebook */
+.nb-root{display:flex;flex-direction:column;width:100%;height:100%;background:var(--bg)}.nb-menubar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;gap:16px;border-bottom:1px solid var(--border);background:var(--surface)}.nb-menu-mid{display:flex;align-items:center;gap:10px}
+.nb-tabs{display:flex;align-items:stretch;background:var(--surface-3);border-bottom:1px solid var(--border);padding-left:4px}.nb-tab{display:flex;align-items:center;gap:6px;padding:8px 12px;border:none;cursor:pointer;background:transparent;font-family:var(--font-mono);font-size:12px;color:var(--text-2);border-right:1px solid var(--border);position:relative}.nb-tab.on{background:var(--surface-2);color:var(--text)}.nb-tab.on::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent)}.nb-tab-icon{color:var(--accent)}.nb-tab-x{color:var(--text-3);font-size:14px;line-height:1;padding-left:4px}
+.nb-main{flex:1;display:grid;grid-template-columns:1fr 440px;min-height:0}.nb-editor{background:var(--surface-2);padding:16px 0;border-right:1px solid var(--border);min-height:0;overflow:auto}.nb-cells{display:flex;flex-direction:column;gap:8px;padding:0 16px}.nb-cell{display:grid;grid-template-columns:50px 1fr;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;transition:border-color .15s ease}.nb-cell:hover{border-color:oklch(0.55 0.18 285/.4)}.nb-cell-gutter{background:var(--surface-3);display:flex;flex-direction:column;align-items:center;padding:8px 4px;gap:4px;border-right:1px solid var(--border)}.nb-cell-num{font-family:var(--font-mono);font-size:10.5px;color:var(--accent-text);font-weight:600;background:var(--accent-bg);padding:2px 6px;border-radius:4px;margin-bottom:4px}.nb-cell-mini{width:22px;height:22px;border:none;background:transparent;border-radius:4px;cursor:pointer;color:var(--text-2);font-size:11px}.nb-cell-mini:hover{background:var(--surface)}.nb-cell-mini.danger:hover{background:oklch(0.96 0.04 25);color:var(--err)}.nb-cell-mini:disabled{opacity:.3;cursor:not-allowed}.nb-cell-body{padding:10px 12px;min-width:0}.nb-cell-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;color:var(--text-3)}
+.nb-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 14px;margin-top:4px;background:var(--surface);border:1px dashed var(--border-strong);border-radius:var(--radius)}.nb-vars{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:10px 14px;margin-top:8px;background:oklch(0.97 0.02 285);border-radius:var(--radius)}
+.nb-preview{background:var(--surface);display:flex;flex-direction:column;min-height:0}.nb-pane-h{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface-3);color:var(--text-3)}.nb-preview-body{flex:1;padding:20px;background:var(--surface-2);overflow:auto}
+.nb-console{border-top:1px solid var(--border);background:var(--surface)}.nb-console-h{display:flex;justify-content:space-between;align-items:center;padding:8px 16px;cursor:pointer;user-select:none;background:var(--surface-3);color:var(--text-2)}.nb-console-h:hover{background:var(--surface-2)}.nb-console-body{max-height:200px;overflow:auto}.nb-console-body .cv-json{border-radius:0;padding:12px 16px;background:var(--surface)}
+.nb-file{background:var(--surface)}.nb-file-h{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);color:var(--text-2)}.nb-hook-row{display:flex;gap:6px;align-items:center;padding:6px 10px;border-radius:6px}.nb-hook-row:hover{background:var(--surface-2)}.nb-hist-line{display:flex;gap:12px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--border)}.nb-hist-line:hover{background:var(--surface-2)}.input.small{padding:5px 8px;font-size:11.5px}
+/* Layout switcher */
+html,body{height:100%;margin:0}body{display:flex;flex-direction:column;overflow:hidden}
+.lp-switcher{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:#1a1a1d;color:#e5e2db;border-bottom:1px solid #2a2a2d;font-family:'DM Sans',sans-serif}
+.lp-switch-brand{display:flex;align-items:center;gap:10px;font-size:13px}.lp-switch-logo{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,oklch(0.55 0.18 285),oklch(0.55 0.18 240));color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px}
+.lp-tabs{display:flex;gap:4px;background:rgba(255,255,255,.06);padding:3px;border-radius:8px}.lp-tab{padding:6px 14px;border-radius:6px;border:none;background:transparent;color:#a8a59f;cursor:pointer;font-family:inherit;font-size:12.5px;font-weight:500;transition:all .15s ease}.lp-tab:hover{color:#e5e2db}.lp-tab.on{background:oklch(0.55 0.18 285);color:#fff}.lp-meta{font-size:11px;color:#888581;font-family:'JetBrains Mono',monospace}
+.lp-stage{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+</style>
+</head>
+<body>
+<div id="root" style="display:flex;flex-direction:column;height:100%"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useMemo, useRef, useEffect } = React;
+
+// ── AppScript bridge ────────────────────────────────────────────────
+const GAS = {
+  isGAS: typeof google !== 'undefined' && google.script,
+  call(fn, ...args) {
+    return new Promise((ok, err) => {
+      if (!this.isGAS) { err(new Error('Hors AppScript — simulation activée')); return; }
+      google.script.run.withSuccessHandler(ok).withFailureHandler(err)[fn](...args);
+    });
+  },
+};
+
+// ── Parsers ─────────────────────────────────────────────────────────
+const parseTSV = (text) => {
+  const lines = text.trim().split(/\r?\n/);
+  if (!lines.length) return { headers: [], rows: [] };
+  const headers = lines[0].split('\t').map(s => s.trim());
+  const rows = lines.slice(1).map(line => {
+    const cells = line.split('\t');
+    const row = {};
+    headers.forEach((h, i) => row[h] = (cells[i] || '').trim());
+    return row;
+  });
+  return { headers, rows };
+};
+const parseCSV = (text) => {
+  const lines = []; let cur = '', inQ = false, row = []; const all = text.trim();
+  for (let i = 0; i < all.length; i++) {
+    const c = all[i];
+    if (inQ) { if (c==='"' && all[i+1]==='"'){cur+='"';i++;}else if(c==='"')inQ=false;else cur+=c; }
+    else { if(c==='"')inQ=true;else if(c===','){row.push(cur);cur='';}else if(c==='\n'){row.push(cur);lines.push(row);row=[];cur='';}else if(c!=='\r')cur+=c; }
+  }
+  if(cur.length||row.length){row.push(cur);lines.push(row);}
+  if(!lines.length)return{headers:[],rows:[]};
+  const headers=lines[0].map(s=>s.trim());
+  const rows=lines.slice(1).map(cells=>{const r={};headers.forEach((h,i)=>r[h]=(cells[i]||'').trim());return r;});
+  return{headers,rows};
+};
+const parseJSON = (text) => {
+  try {
+    const data = JSON.parse(text);
+    if (Array.isArray(data)) {
+      const headers = [...new Set(data.flatMap(o => Object.keys(o||{})))];
+      const rows = data.map(o=>{const r={};headers.forEach(h=>r[h]=o[h]==null?'':String(o[h]));return r;});
+      return{headers,rows};
+    }
+    if(data&&typeof data==='object'){const headers=Object.keys(data);return{headers,rows:[headers.reduce((acc,h)=>(acc[h]=String(data[h]),acc),{})]}}
+    return{headers:[],rows:[]};
+  } catch(e){return{headers:[],rows:[],error:e.message};}
+};
+const parseHTMLTable = (text) => {
+  const tmp=document.createElement('div');tmp.innerHTML=text;
+  const table=tmp.querySelector('table');if(!table)return parseTSV(text);
+  const rows=[...table.querySelectorAll('tr')];if(!rows.length)return{headers:[],rows:[]};
+  const headers=[...rows[0].querySelectorAll('th,td')].map(c=>c.textContent.trim());
+  const data=rows.slice(1).map(tr=>{const cells=[...tr.querySelectorAll('td,th')];const r={};headers.forEach((h,i)=>r[h]=cells[i]?cells[i].textContent.trim():'');return r;});
+  return{headers,rows:data};
+};
+const autoDetect = (text) => {
+  const t=text.trim();if(!t)return'tsv';
+  if(t.startsWith('{')||t.startsWith('['))return'json';
+  if(/<table[\s>]/i.test(t))return'html';
+  const first=t.split('\n')[0];
+  if(first.includes('\t'))return'tsv';if(first.includes(','))return'csv';return'tsv';
+};
+const parseAny = (text, format) => {
+  const fmt=format==='auto'?autoDetect(text):format;
+  if(fmt==='tsv')return{...parseTSV(text),format:fmt};
+  if(fmt==='csv')return{...parseCSV(text),format:fmt};
+  if(fmt==='json')return{...parseJSON(text),format:fmt};
+  if(fmt==='html')return{...parseHTMLTable(text),format:fmt};
+  return{headers:[],rows:[],format:fmt};
+};
+
+// ── Card builder ─────────────────────────────────────────────────────
+const interpolate = (tpl, row) => {
+  if(!tpl)return'';
+  return String(tpl).replace(/\{\{\s*([\w\s.-]+?)\s*\}\}/g,(_,key)=>{const v=row[key.trim()];return v==null?'':String(v);});
+};
+const hexToRgb = (hex) => {
+  const m=hex.replace('#','').match(/.{1,2}/g);if(!m)return undefined;
+  return{red:parseInt(m[0],16)/255,green:parseInt(m[1],16)/255,blue:parseInt(m[2],16)/255};
+};
+const buildCard = (config, parsed) => {
+  const { blocks, mode, header } = config;
+  const { rows, headers } = parsed;
+  const sections = [];
+  let cardHeader = null;
+  if(header&&header.enabled){cardHeader={title:header.title||'',subtitle:header.subtitle||'',...(header.imageUrl?{imageUrl:header.imageUrl,imageType:'CIRCLE'}:{})};}
+  const renderBlock = (b, row) => {
+    if(b.type==='textParagraph')return{textParagraph:{text:interpolate(b.text,row)}};
+    if(b.type==='decoratedText')return{decoratedText:{topLabel:interpolate(b.topLabel,row),text:interpolate(b.text,row),bottomLabel:interpolate(b.bottomLabel,row),...(b.icon?{startIcon:{knownIcon:b.icon}}:{})}};
+    if(b.type==='image')return{image:{imageUrl:interpolate(b.url,row),altText:interpolate(b.alt||'',row)}};
+    if(b.type==='divider')return{divider:{}};
+    if(b.type==='buttonList')return{buttonList:{buttons:(b.buttons||[]).map(btn=>({text:interpolate(btn.text,row),onClick:{openLink:{url:interpolate(btn.url,row)}},...(btn.color?{color:hexToRgb(btn.color)}:{}),}))}};
+    if(b.type==='columns')return{columns:{columnItems:(b.cols||[]).map(c=>({horizontalSizeStyle:'FILL_AVAILABLE_SPACE',widgets:[{textParagraph:{text:interpolate(c.text,row)}}]}))}};
+    return null;
+  };
+  if(mode==='perRow'){
+    const widgets=[];
+    rows.forEach((row,i)=>{if(i>0)widgets.push({divider:{}});blocks.forEach(b=>{const w=renderBlock(b,row);if(w)widgets.push(w);});});
+    sections.push({...(config.sectionHeader?{header:config.sectionHeader}:{}),widgets});
+  } else if(mode==='perRowSeparateSections'){
+    rows.forEach((row,i)=>{const widgets=blocks.map(b=>renderBlock(b,row)).filter(Boolean);sections.push({...(config.sectionHeader&&i===0?{header:config.sectionHeader}:{}),widgets});});
+  } else {
+    const widgets=[];
+    blocks.forEach(b=>{
+      if(b.type==='tableFromData'){rows.forEach(r=>{widgets.push({decoratedText:{topLabel:headers[0]?r[headers[0]]:'',text:headers.slice(1).map(h=>`<b>${h}:</b> ${r[h]||'—'}`).join('  ·  ')}});});}
+      else{const w=renderBlock(b,rows[0]||{});if(w)widgets.push(w);}
+    });
+    sections.push({widgets});
+  }
+  return{cardsV2:[{cardId:'card-v2-'+Date.now(),card:{...(cardHeader?{header:cardHeader}:{}),sections}}]};
+};
+
+// ── Preview components ───────────────────────────────────────────────
+const ICONS={EMAIL:'✉',PHONE:'☎',PERSON:'👤',STAR:'★',BOOKMARK:'⚑',CLOCK:'◷',INVITE:'◇',CONFIRMATION_NUMBER_ICON:'#',TICKET:'◆',TRAIN:'▤',FLIGHT_DEPARTURE:'↗',HOTEL:'⬢',DOLLAR:'$',EVENT_SEAT:'◧',AIRPLANE:'✈',MEMBERSHIP:'◉',GROUP:'👥',LIGHTBULB:'💡',ROCKET:'🚀',SPARKLES:'✨',WAVE:'👋',WARNING:'⚠'};
+const richText = (txt) => (txt||'').replace(/<b>(.*?)<\/b>/g,'<strong>$1</strong>').replace(/<i>(.*?)<\/i>/g,'<em>$1</em>').replace(/\n/g,'<br>');
+const Bubble = ({children,sender='AppScript Bot',when="à l'instant",showReactions=true}) => (
+  <div className="cv-bubble">
+    <div className="cv-avatar">B</div>
+    <div className="cv-bubble-body">
+      <div className="cv-bubble-meta"><span className="cv-bubble-sender">{sender}</span><span className="cv-bubble-time">{when}</span></div>
+      <div className="cv-bubble-card">{children}</div>
+      {showReactions&&(<div className="cv-reactions"><button className="cv-rx">👍 <span className="cv-rx-n">3</span></button><button className="cv-rx cv-rx-add">☺</button></div>)}
+    </div>
+  </div>
+);
+const renderWidget = (w, key) => {
+  if(w.textParagraph)return<div key={key} className="cv-w cv-text" dangerouslySetInnerHTML={{__html:richText(w.textParagraph.text)}}/>;
+  if(w.decoratedText){const d=w.decoratedText;const icon=d.startIcon?.knownIcon?(ICONS[d.startIcon.knownIcon]||'◆'):null;return(<div key={key} className="cv-w cv-dec">{icon&&<div className="cv-dec-icon">{icon}</div>}<div className="cv-dec-body">{d.topLabel&&<div className="cv-dec-top">{d.topLabel}</div>}<div className="cv-dec-text" dangerouslySetInnerHTML={{__html:richText(d.text)}}/>{d.bottomLabel&&<div className="cv-dec-bottom" dangerouslySetInnerHTML={{__html:richText(d.bottomLabel)}}/>}</div></div>);}
+  if(w.image)return(<div key={key} className="cv-w cv-img">{w.image.imageUrl?<img src={w.image.imageUrl} alt={w.image.altText||''}/>:<div className="cv-img-placeholder">image</div>}</div>);
+  if(w.divider)return<div key={key} className="cv-w cv-divider"/>;
+  if(w.buttonList)return(<div key={key} className="cv-w cv-btns">{(w.buttonList.buttons||[]).map((b,i)=>(<button key={i} className="cv-btn" style={b.color?{background:`rgb(${Math.round(b.color.red*255)},${Math.round(b.color.green*255)},${Math.round(b.color.blue*255)})`,color:'#fff',borderColor:'transparent'}:{}}>{b.text||'Button'}</button>))}</div>);
+  if(w.columns)return(<div key={key} className="cv-w cv-cols">{(w.columns.columnItems||[]).map((c,i)=><div key={i} className="cv-col">{(c.widgets||[]).map((cw,j)=>renderWidget(cw,j))}</div>)}</div>);
+  return null;
+};
+const CardPreview = ({payload,sender,scale=1}) => {
+  if(!payload||!payload.cardsV2||!payload.cardsV2.length)return<Bubble sender={sender} showReactions={false}><div className="cv-empty">Aucune carte</div></Bubble>;
+  return(<div style={{transform:`scale(${scale})`,transformOrigin:'top left'}}>{payload.cardsV2.map((c,i)=>(<Bubble key={i} sender={sender}>{c.card.header&&(<div className="cv-header"><div className="cv-header-img">{c.card.header.imageUrl?<img src={c.card.header.imageUrl} alt=""/>:<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="9" cy="8" r="3"/><circle cx="16.5" cy="9" r="2.2"/><path d="M3 19c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M15.5 18.5c0-2.2 1.6-4 3.5-4s2.5 0 3 .5"/></svg>}</div><div className="cv-header-text"><div className="cv-header-title" dangerouslySetInnerHTML={{__html:richText(c.card.header.title)}}/>{c.card.header.subtitle&&<div className="cv-header-sub">{c.card.header.subtitle}</div>}</div></div>)}{(c.card.sections||[]).map((s,si)=>(<div key={si} className="cv-section">{s.header&&<div className="cv-section-h" dangerouslySetInnerHTML={{__html:richText(s.header)}}/>}{(s.widgets||[]).map((w,wi)=>renderWidget(w,wi))}</div>))}</Bubble>))}</div>);
+};
+const JsonView = ({data}) => {
+  const str=JSON.stringify(data,null,2);
+  const hl=str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(?=\s*:))/g,'<span class="jk">$1</span>').replace(/:\s*("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*")/g,': <span class="js">$1</span>').replace(/:\s*(true|false|null)/g,': <span class="jb">$1</span>').replace(/:\s*(-?\d+\.?\d*)/g,': <span class="jn">$1</span>');
+  return<pre className="cv-json" dangerouslySetInnerHTML={{__html:hl}}/>;
+};
+
+// ── Sample data ──────────────────────────────────────────────────────
+const SAMPLE_TSV=`Sujet\tPrésenté par\tAction / Constat\tDétails\nStory Mapping\tNicolas\tRéalisation d'un premier Story Mapping\tProposition de contacter Julie pour présenter la démarche.\nSuivi actions d'amélioration\tChristelle\tMatrice de Résilience\tLe point concerne le suivi des actions d'amélioration continue.\nExtraction OASIS\tAmor\tProblématique autour des tickets OASIS mal affectés\tExport manuel, Christelle a proposé de l'aider à réaliser un tableau de bord.\nNouvelle arrivée\tHélène\tWelcome\tPrésentation et rapide feedback sur son arrivée dans l'équipe.`;
+const SAMPLE_WEBHOOKS=[{id:'wh1',name:'🚀 #releases-prod',url:'https://chat.googleapis.com/v1/spaces/AAAA…/messages?key=…',favorite:true,lastUsed:'il y a 2h'},{id:'wh2',name:'🛟 #incident-room',url:'https://chat.googleapis.com/v1/spaces/BBBB…/messages?key=…',favorite:true,lastUsed:'hier'},{id:'wh3',name:'📊 #weekly-metrics',url:'https://chat.googleapis.com/v1/spaces/CCCC…/messages?key=…',favorite:false,lastUsed:'il y a 6j'},{id:'wh4',name:'🎨 #design-review',url:'https://chat.googleapis.com/v1/spaces/DDDD…/messages?key=…',favorite:false,lastUsed:'il y a 12j'}];
+const SAMPLE_HISTORY=[{id:'h1',when:'il y a 8 min',target:'🚀 #releases-prod',title:'Sprint 24 — Récap équipe',count:4,status:'ok'},{id:'h2',when:'il y a 3h',target:'🛟 #incident-room',title:'Incident #2031 résolu',count:1,status:'ok'},{id:'h3',when:'hier 18:22',target:'📊 #weekly-metrics',title:'Métriques semaine 21',count:6,status:'ok'},{id:'h4',when:'hier 09:14',target:'🚀 #releases-prod',title:'Déploiement v3.4.1',count:1,status:'failed'}];
+const DEFAULT_CONFIG={mode:'perRow',header:{enabled:true,title:'✨ COMPTE-RENDU DE RÉUNION 20/04/2026',subtitle:'Communauté Agile Master',imageUrl:''},sectionHeader:'🚀 SUJETS ABORDÉS',blocks:[{type:'decoratedText',icon:'PERSON',topLabel:'{{Sujet}}',text:'<b>{{Présenté par}} → {{Action / Constat}}</b>',bottomLabel:'💡 {{Détails}}'}]};
+
+// ── Shared block label ───────────────────────────────────────────────
+const blockLabel = t=>({textParagraph:'Paragraphe',decoratedText:'Decorated',image:'Image',divider:'Divider',buttonList:'Boutons',columns:'Colonnes',tableFromData:'Table'})[t]||t;
+
+// ── BlockEditor ──────────────────────────────────────────────────────
+function BlockEditor({block,idx,onChange,onRemove,onMoveUp,onMoveDown,canUp,canDown}){
+  const [open,setOpen]=useState(true);
+  return(
+    <div className="block">
+      <div className="block-h" onClick={()=>setOpen(o=>!o)}>
+        <span className="block-num">{idx+1}</span>
+        <span className="block-type">{blockLabel(block.type)}</span>
+        <span className="block-preview muted small">{block.type==='textParagraph'&&(block.text?.slice(0,60)||'vide')}{block.type==='decoratedText'&&`${block.icon||'—'} · ${(block.text||'').slice(0,40)}`}{block.type==='image'&&(block.url||"pas d'URL")}{block.type==='divider'&&'──'}{block.type==='buttonList'&&`${(block.buttons||[]).length} bouton(s)`}{block.type==='columns'&&`${(block.cols||[]).length} colonnes`}{block.type==='tableFromData'&&'auto'}</span>
+        <div className="spacer"/>
+        <button className="btn icon ghost sm" disabled={!canUp} onClick={e=>{e.stopPropagation();onMoveUp();}}>↑</button>
+        <button className="btn icon ghost sm" disabled={!canDown} onClick={e=>{e.stopPropagation();onMoveDown();}}>↓</button>
+        <button className="btn icon danger sm" onClick={e=>{e.stopPropagation();onRemove();}}>×</button>
+      </div>
+      {open&&(
+        <div className="block-b">
+          {block.type==='textParagraph'&&<textarea className="textarea" style={{minHeight:60}} value={block.text||''} onChange={e=>onChange({text:e.target.value})} placeholder="Texte — <b>gras</b>, {{variables}}"/>}
+          {block.type==='decoratedText'&&(<div className="grid-2"><select className="select" value={block.icon||''} onChange={e=>onChange({icon:e.target.value})}><option value="">— Pas d'icône —</option>{Object.keys(ICONS).map(k=><option key={k} value={k}>{ICONS[k]} {k}</option>)}</select><input className="input" placeholder="Top label" value={block.topLabel||''} onChange={e=>onChange({topLabel:e.target.value})}/><input className="input" placeholder="Texte principal" value={block.text||''} onChange={e=>onChange({text:e.target.value})} style={{gridColumn:'span 2'}}/><input className="input" placeholder="Bottom label" value={block.bottomLabel||''} onChange={e=>onChange({bottomLabel:e.target.value})} style={{gridColumn:'span 2'}}/></div>)}
+          {block.type==='image'&&(<div className="col" style={{gap:6}}><input className="input" placeholder="URL de l'image" value={block.url||''} onChange={e=>onChange({url:e.target.value})}/><input className="input" placeholder="Alt text" value={block.alt||''} onChange={e=>onChange({alt:e.target.value})}/></div>)}
+          {block.type==='divider'&&<div className="muted small">Séparateur visuel — pas de configuration.</div>}
+          {block.type==='buttonList'&&(<div className="col" style={{gap:6}}>{(block.buttons||[]).map((btn,bi)=>(<div key={bi} className="row" style={{gap:4}}><input className="input" placeholder="Libellé" value={btn.text} onChange={e=>{const nb=[...block.buttons];nb[bi]={...btn,text:e.target.value};onChange({buttons:nb});}}/><input className="input" placeholder="URL" value={btn.url} onChange={e=>{const nb=[...block.buttons];nb[bi]={...btn,url:e.target.value};onChange({buttons:nb});}}/><input type="color" value={btn.color||'#7b3ff2'} style={{width:36,height:32,padding:0,border:'1px solid var(--border)',borderRadius:6}} onChange={e=>{const nb=[...block.buttons];nb[bi]={...btn,color:e.target.value};onChange({buttons:nb});}}/><button className="btn icon danger sm" onClick={()=>onChange({buttons:block.buttons.filter((_,i)=>i!==bi)})}>×</button></div>))}<button className="btn sm" onClick={()=>onChange({buttons:[...(block.buttons||[]),{text:'Action',url:'https://'}]})}>+ Bouton</button></div>)}
+          {block.type==='columns'&&(<div className="col" style={{gap:6}}>{(block.cols||[]).map((c,ci)=>(<div key={ci} className="row" style={{gap:4}}><input className="input" placeholder={`Colonne ${ci+1}`} value={c.text} onChange={e=>{const nc=[...block.cols];nc[ci]={text:e.target.value};onChange({cols:nc});}}/><button className="btn icon danger sm" onClick={()=>onChange({cols:block.cols.filter((_,i)=>i!==ci)})}>×</button></div>))}<button className="btn sm" onClick={()=>onChange({cols:[...(block.cols||[]),{text:'Nouvelle'}]})}>+ Colonne</button></div>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── DataPanel ────────────────────────────────────────────────────────
+function DataPanel({pasteText,setPasteText,format,setFormat,parsed}){
+  return(
+    <div className="col" style={{gap:16}}>
+      <div>
+        <div className="row" style={{marginBottom:8,justifyContent:'space-between'}}>
+          <span className="label">Données sources</span>
+          <div className="row" style={{gap:6}}>
+            <select className="select" style={{width:'auto'}} value={format} onChange={e=>setFormat(e.target.value)}>
+              <option value="auto">Auto ({autoDetect(pasteText).toUpperCase()})</option>
+              <option value="tsv">TSV (Sheets)</option>
+              <option value="csv">CSV</option>
+              <option value="json">JSON</option>
+              <option value="html">HTML table</option>
+            </select>
+            <button className="btn sm" onClick={()=>setPasteText(SAMPLE_TSV)}>Exemple</button>
+            <button className="btn sm ghost" onClick={()=>setPasteText('')}>Vider</button>
+          </div>
+        </div>
+        <textarea className="textarea" style={{minHeight:200}} value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="Collez ici depuis Google Sheets, Notion, CSV ou JSON…"/>
+      </div>
+      <div>
+        <div className="row" style={{marginBottom:8,justifyContent:'space-between'}}>
+          <span className="label">Parsé · {parsed.rows.length} lignes × {parsed.headers.length} col.</span>
+          {parsed.error&&<span className="chip err">{parsed.error}</span>}
+        </div>
+        <div className="data-table-wrap scroll">
+          <table className="data-table">
+            <thead><tr>{parsed.headers.map(h=><th key={h}>{h}</th>)}</tr></thead>
+            <tbody>
+              {parsed.rows.map((r,i)=>(<tr key={i}>{parsed.headers.map(h=><td key={h}>{r[h]}</td>)}</tr>))}
+              {!parsed.rows.length&&<tr><td colSpan={Math.max(parsed.headers.length,1)} style={{textAlign:'center',padding:24,color:'var(--text-3)'}}>Aucune donnée. Collez un tableau ci-dessus.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {parsed.headers.length>0&&(<div className="row" style={{marginTop:10,flexWrap:'wrap',gap:4}}><span className="small muted">Variables :</span>{parsed.headers.map(h=><span key={h} className="chip mono" style={{fontSize:10}}>{`{{${h}}}`}</span>)}</div>)}
+      </div>
+    </div>
+  );
+}
+
+// ── BuilderPanel ─────────────────────────────────────────────────────
+function BuilderPanel({config,setConfig,parsed,updateBlock,removeBlock,moveBlock,addBlock}){
+  const addBlockTemplate = (type) => {
+    const templates={textParagraph:{type:'textParagraph',text:'Texte avec <b>balises HTML</b>'},decoratedText:{type:'decoratedText',icon:'STAR',topLabel:'Label',text:'<b>Texte principal</b>',bottomLabel:''},image:{type:'image',url:'',alt:''},divider:{type:'divider'},buttonList:{type:'buttonList',buttons:[{text:'Voir',url:'https://',color:''}]},columns:{type:'columns',cols:[{text:'Colonne 1'},{text:'Colonne 2'}]},tableFromData:{type:'tableFromData'}};
+    addBlock(templates[type]||{type});
+  };
+  return(
+    <div className="col" style={{gap:16}}>
+      <div className="builder-card">
+        <div className="builder-card-h">
+          <span className="label">Header de carte</span>
+          <label className="row" style={{gap:4}}><input type="checkbox" checked={config.header.enabled} onChange={e=>setConfig(c=>({...c,header:{...c.header,enabled:e.target.checked}}))}/><span className="small">Activer</span></label>
+        </div>
+        {config.header.enabled&&(<div className="col" style={{gap:8}}>
+          <input className="input" placeholder="Titre" value={config.header.title} onChange={e=>setConfig(c=>({...c,header:{...c.header,title:e.target.value}}))}/>
+          <input className="input" placeholder="Sous-titre — {{variables}} acceptées" value={config.header.subtitle} onChange={e=>setConfig(c=>({...c,header:{...c.header,subtitle:e.target.value}}))}/>
+          <input className="input" placeholder="URL image (optionnel)" value={config.header.imageUrl} onChange={e=>setConfig(c=>({...c,header:{...c.header,imageUrl:e.target.value}}))}/>
+        </div>)}
+      </div>
+      <div className="builder-card">
+        <div className="builder-card-h"><span className="label">Mode de génération</span></div>
+        <div className="seg">
+          <button className={`seg-btn ${config.mode==='perRow'?'on':''}`} onClick={()=>setConfig(c=>({...c,mode:'perRow'}))}><div><b>Liste répétée</b></div><div className="small muted">Toutes les lignes, séparées par des dividers</div></button>
+          <button className={`seg-btn ${config.mode==='summary'?'on':''}`} onClick={()=>setConfig(c=>({...c,mode:'summary'}))}><div><b>Résumé tabulaire</b></div><div className="small muted">Une seule section compacte</div></button>
+        </div>
+        {config.mode==='perRow'&&(<div style={{marginTop:10}}><div className="label" style={{marginBottom:6}}>En-tête de section</div><input className="input" placeholder="🚀 SUJETS ABORDÉS" value={config.sectionHeader||''} onChange={e=>setConfig(c=>({...c,sectionHeader:e.target.value}))}/></div>)}
+      </div>
+      <div className="builder-card">
+        <div className="builder-card-h">
+          <span className="label">Blocs ({config.blocks.length})</span>
+          <div className="row" style={{gap:4,flexWrap:'wrap'}}>
+            {['decoratedText','textParagraph','image','divider','buttonList','columns',...(config.mode==='summary'?['tableFromData']:[])].map(t=><button key={t} className="btn sm" onClick={()=>addBlockTemplate(t)}>+ {blockLabel(t)}</button>)}
+          </div>
+        </div>
+        <div className="col" style={{gap:6}}>
+          {config.blocks.map((b,i)=>(<BlockEditor key={i} block={b} idx={i} onChange={p=>updateBlock(i,p)} onRemove={()=>removeBlock(i)} onMoveUp={()=>moveBlock(i,-1)} onMoveDown={()=>moveBlock(i,1)} canUp={i>0} canDown={i<config.blocks.length-1}/>))}
+          {!config.blocks.length&&<div className="empty-state">Aucun bloc. Ajoutez-en un ci-dessus.</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── AddWebhookModal ──────────────────────────────────────────────────
+function AddWebhookModal({onClose,onAdd}){
+  const [name,setName]=useState('');const [url,setUrl]=useState('');
+  return(
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-h"><h3>Ajouter un webhook</h3><p>Donnez un nom mémorisable au salon de destination.</p></div>
+        <div className="modal-b"><div className="col" style={{gap:10}}>
+          <div><div className="label" style={{marginBottom:4}}>Nom du salon</div><input className="input" placeholder="📣 #annonces" value={name} onChange={e=>setName(e.target.value)} autoFocus/></div>
+          <div><div className="label" style={{marginBottom:4}}>URL du webhook Google Chat</div><input className="input mono" placeholder="https://chat.googleapis.com/v1/spaces/…" value={url} onChange={e=>setUrl(e.target.value)}/></div>
+          <div className="small muted">L'URL est stockée dans PropertiesService (AppScript).</div>
+        </div></div>
+        <div className="modal-f"><button className="btn ghost" onClick={onClose}>Annuler</button><button className="btn primary" disabled={!name||!url} onClick={()=>{onAdd({name,url});onClose();}}>Ajouter</button></div>
+      </div>
+    </div>
+  );
+}
+
+// ── WorkspaceLayout ──────────────────────────────────────────────────
+function WorkspaceLayout({onSendReal}){
+  const [webhooks,setWebhooks]=useState(SAMPLE_WEBHOOKS);
+  const [selectedHook,setSelectedHook]=useState('wh1');
+  const [history,setHistory]=useState(SAMPLE_HISTORY);
+  const [pasteText,setPasteText]=useState(SAMPLE_TSV);
+  const [format,setFormat]=useState('auto');
+  const [config,setConfig]=useState(DEFAULT_CONFIG);
+  const [showConfirm,setShowConfirm]=useState(false);
+  const [showAddWebhook,setShowAddWebhook]=useState(false);
+  const [showJson,setShowJson]=useState(false);
+  const [toasts,setToasts]=useState([]);
+  const [activeTab,setActiveTab]=useState('builder');
+  const [sending,setSending]=useState(false);
+
+  const parsed=useMemo(()=>parseAny(pasteText,format),[pasteText,format]);
+  const payload=useMemo(()=>buildCard(config,parsed),[config,parsed]);
+  const currentHook=webhooks.find(w=>w.id===selectedHook);
+
+  const pushToast=(msg,kind='ok')=>{const id=Date.now()+Math.random();setToasts(t=>[...t,{id,msg,kind}]);setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),3000);};
+
+  const updateBlock=(idx,patch)=>setConfig(c=>({...c,blocks:c.blocks.map((b,i)=>i===idx?{...b,...patch}:b)}));
+  const removeBlock=(idx)=>setConfig(c=>({...c,blocks:c.blocks.filter((_,i)=>i!==idx)}));
+  const moveBlock=(idx,dir)=>{const ni=idx+dir;if(ni<0||ni>=config.blocks.length)return;setConfig(c=>{const next=[...c.blocks];[next[idx],next[ni]]=[next[ni],next[idx]];return{...c,blocks:next};});};
+  const addBlock=(block)=>setConfig(c=>({...c,blocks:[...c.blocks,block]}));
+
+  const handleSend=async()=>{
+    setSending(true);
+    const newEntry={id:'h'+Date.now(),when:"à l'instant",target:currentHook.name,title:config.header.title,count:parsed.rows.length,status:'ok'};
+    try{
+      await onSendReal(currentHook.url,payload);
+      setHistory(h=>[newEntry,...h]);
+      setShowConfirm(false);
+      pushToast(`Carte envoyée → ${currentHook.name}`,'ok');
+    }catch(e){
+      pushToast(e.message||'Erreur envoi','err');
+      setHistory(h=>[{...newEntry,status:'failed'},...h]);
+      setShowConfirm(false);
+    }
+    setSending(false);
+  };
+
+  const favWebhooks=webhooks.filter(w=>w.favorite);
+  const otherWebhooks=webhooks.filter(w=>!w.favorite);
+
+  return(
+    <div className="ws-root">
+      <div className="brand-strip"/>
+      <header className="ws-top">
+        <div className="ws-brand"><div className="ws-logo">CV</div><div><div className="ws-title">Card V2 Studio</div><div className="ws-sub">Générateur de messages Google Chat · AppScript</div></div></div>
+        <div className="row" style={{gap:10}}>
+          <div className="chip">workspace · 3-col</div>
+          <button className="btn ghost sm" onClick={()=>setShowJson(true)}>{`{ } JSON`}</button>
+        </div>
+      </header>
+      <div className="ws-main">
+        <aside className="ws-left">
+          <div className="ws-pane-h"><span className="label">Webhooks</span><button className="btn sm ghost" onClick={()=>setShowAddWebhook(true)}>+ Ajouter</button></div>
+          <div className="ws-search"><input className="input" placeholder="Rechercher…"/></div>
+          {favWebhooks.length>0&&<><div className="ws-group-h">★ Favoris</div><div className="ws-list">{favWebhooks.map(w=><div key={w.id} className={`ws-hook ${selectedHook===w.id?'on':''}`} onClick={()=>setSelectedHook(w.id)}><div className="ws-hook-body"><div className="ws-hook-name">{w.name}</div><div className="ws-hook-meta">{w.lastUsed}</div></div><button className="btn icon ghost" onClick={e=>{e.stopPropagation();setWebhooks(ws=>ws.map(x=>x.id===w.id?{...x,favorite:!x.favorite}:x));}}><span style={{color:w.favorite?'var(--warn)':'var(--text-3)'}}>★</span></button></div>)}</div></>}
+          {otherWebhooks.length>0&&<><div className="ws-group-h">Autres</div><div className="ws-list">{otherWebhooks.map(w=><div key={w.id} className={`ws-hook ${selectedHook===w.id?'on':''}`} onClick={()=>setSelectedHook(w.id)}><div className="ws-hook-body"><div className="ws-hook-name">{w.name}</div><div className="ws-hook-meta">{w.lastUsed}</div></div><button className="btn icon ghost" onClick={e=>{e.stopPropagation();setWebhooks(ws=>ws.map(x=>x.id===w.id?{...x,favorite:!x.favorite}:x));}}><span style={{color:w.favorite?'var(--warn)':'var(--text-3)'}}>★</span></button></div>)}</div></>}
+          <div className="ws-history"><div className="ws-group-h">Historique</div><div className="ws-list">{history.slice(0,6).map(h=><div key={h.id} className="ws-hist-row"><div className={`ws-hist-dot ${h.status}`}/><div className="ws-hist-body"><div className="ws-hist-title">{h.title}</div><div className="ws-hist-meta"><span>{h.target}</span><span>·</span><span>{h.when}</span></div></div><button className="btn sm ghost">↻</button></div>)}</div></div>
+        </aside>
+        <section className="ws-center">
+          <div className="ws-tabs">
+            <button className={`ws-tab ${activeTab==='data'?'on':''}`} onClick={()=>setActiveTab('data')}><span className="ws-tab-num">1</span>Données{parsed.rows.length>0&&<span className="chip accent">{parsed.rows.length}</span>}</button>
+            <button className={`ws-tab ${activeTab==='builder'?'on':''}`} onClick={()=>setActiveTab('builder')}><span className="ws-tab-num">2</span>Carte<span className="chip">{config.blocks.length} blocs</span></button>
+            <div className="spacer"/><span className="muted small">Cible : <b style={{color:'var(--text)'}}>{currentHook?.name}</b></span>
+          </div>
+          {activeTab==='data'&&<div className="ws-pad scroll"><DataPanel pasteText={pasteText} setPasteText={setPasteText} format={format} setFormat={setFormat} parsed={parsed}/></div>}
+          {activeTab==='builder'&&<div className="ws-pad scroll"><BuilderPanel config={config} setConfig={setConfig} parsed={parsed} updateBlock={updateBlock} removeBlock={removeBlock} moveBlock={moveBlock} addBlock={addBlock}/></div>}
+        </section>
+        <aside className="ws-right">
+          <div className="ws-pane-h"><span className="label">Aperçu</span><div className="row" style={{gap:6}}><span className="chip">Card V2</span><button className="btn sm" onClick={()=>setShowJson(true)}>JSON</button></div></div>
+          <div className="ws-preview scroll"><CardPreview payload={payload} sender="AppScript Bot"/>{parsed.rows.length>1&&config.mode==='perRow'&&<div className="ws-preview-note"><span className="chip accent">×{parsed.rows.length}</span>Une section générée par ligne ({parsed.rows.length} sections).</div>}</div>
+          <div className="ws-actions"><button className="btn" onClick={()=>pushToast('Test envoyé (dry-run)','ok')}>Test</button><button className="btn primary" style={{flex:1}} onClick={()=>setShowConfirm(true)}>Envoyer →</button></div>
+        </aside>
+      </div>
+      <div className="toast-stack">{toasts.map(t=><div key={t.id} className={`toast ${t.kind}`}><span style={{color:t.kind==='ok'?'var(--ok)':'var(--err)'}}>{t.kind==='ok'?'✓':'⚠'}</span>{t.msg}</div>)}</div>
+      {showConfirm&&<div className="modal-bg" onClick={()=>setShowConfirm(false)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="modal-h"><h3>Confirmer l'envoi</h3><p>La carte sera publiée sur le webhook sélectionné.</p></div><div className="modal-b"><div className="recap"><div className="recap-row"><span className="label">Destination</span><span><b>{currentHook?.name}</b></span></div><div className="recap-row"><span className="label">Titre</span><span>{config.header.title}</span></div><div className="recap-row"><span className="label">Lignes</span><span>{parsed.rows.length}</span></div><div className="recap-row"><span className="label">Blocs</span><span>{config.blocks.length}</span></div></div><div className="recap-preview"><CardPreview payload={payload} sender="AppScript Bot"/></div></div><div className="modal-f"><button className="btn ghost" onClick={()=>setShowConfirm(false)}>Annuler</button><button className="btn primary" disabled={sending} onClick={handleSend}>{sending?'Envoi…':"Confirmer l'envoi"}</button></div></div></div>}
+      {showAddWebhook&&<AddWebhookModal onClose={()=>setShowAddWebhook(false)} onAdd={wh=>{setWebhooks(w=>[...w,{...wh,id:'wh'+Date.now(),favorite:false,lastUsed:'jamais'}]);pushToast('Webhook ajouté','ok');}}/>}
+      {showJson&&<div className="modal-bg" onClick={()=>setShowJson(false)}><div className="modal" style={{maxWidth:640}} onClick={e=>e.stopPropagation()}><div className="modal-h"><h3>Payload Card V2</h3><p>Copiez ce JSON pour tester via Postman ou l'intégrer dans votre code.</p></div><div className="modal-b"><JsonView data={payload}/></div><div className="modal-f"><button className="btn" onClick={()=>{navigator.clipboard.writeText(JSON.stringify(payload,null,2));pushToast('Copié');}}>Copier</button><button className="btn primary" onClick={()=>setShowJson(false)}>Fermer</button></div></div></div>}
+    </div>
+  );
+}
+
+// ── WizardLayout ─────────────────────────────────────────────────────
+function WizardLayout({onSendReal}){
+  const [step,setStep]=useState(0);
+  const [webhooks,setWebhooks]=useState(SAMPLE_WEBHOOKS);
+  const [selectedHook,setSelectedHook]=useState('wh1');
+  const [pasteText,setPasteText]=useState(SAMPLE_TSV);
+  const [format,setFormat]=useState('auto');
+  const [template,setTemplate]=useState('teamUpdate');
+  const [config,setConfig]=useState(DEFAULT_CONFIG);
+  const [sentSummary,setSentSummary]=useState(null);
+  const [sending,setSending]=useState(false);
+
+  const parsed=useMemo(()=>parseAny(pasteText,format),[pasteText,format]);
+  const payload=useMemo(()=>buildCard(config,parsed),[config,parsed]);
+  const currentHook=webhooks.find(w=>w.id===selectedHook);
+
+  const steps=[{key:'webhook',title:'Choisir la destination',sub:'Sélectionnez le salon Google Chat'},{key:'data',title:'Coller les données',sub:'Depuis Sheets, Notion, CSV ou JSON'},{key:'card',title:'Composer la carte',sub:'Template + personnalisation'},{key:'send',title:'Vérifier & envoyer',sub:'Aperçu final puis confirmation'}];
+
+  const applyTemplate=(key)=>{
+    setTemplate(key);const h=parsed.headers;
+    const T={teamUpdate:{mode:'perRow',header:{enabled:true,title:'✨ COMPTE-RENDU DE RÉUNION 20/04/2026',subtitle:'Communauté Agile Master',imageUrl:''},sectionHeader:'🚀 SUJETS ABORDÉS',blocks:[{type:'decoratedText',icon:'PERSON',topLabel:h[0]?`{{${h[0]}}}`:'Sujet',text:h[1]&&h[2]?`<b>{{${h[1]}}} → {{${h[2]}}}</b>`:'<b>Action</b>',bottomLabel:h[3]?`💡 {{${h[3]}}}`:''}]},announcement:{mode:'summary',header:{enabled:true,title:'📣 Annonce',subtitle:'Lisez attentivement',imageUrl:''},blocks:[{type:'textParagraph',text:'<b>Important :</b> nouvelle mise à jour.'},{type:'tableFromData'},{type:'divider'},{type:'buttonList',buttons:[{text:'En savoir plus',url:'https://',color:'#7b3ff2'}]}]},metrics:{mode:'summary',header:{enabled:true,title:'📊 Métriques de la semaine',subtitle:'Rapport automatique',imageUrl:''},blocks:[{type:'tableFromData'},{type:'divider'},{type:'buttonList',buttons:[{text:'Ouvrir le dashboard',url:'https://'}]}]},incident:{mode:'summary',header:{enabled:true,title:"🛟 Rapport d'incident",subtitle:'Détails ci-dessous',imageUrl:''},blocks:[{type:'decoratedText',icon:'CLOCK',topLabel:'Détecté',text:'<b>il y a 12 min</b>',bottomLabel:''},{type:'tableFromData'},{type:'buttonList',buttons:[{text:"Page d'incident",url:'https://',color:'#d44'}]}]},minimal:{mode:'summary',header:{enabled:false,title:'',subtitle:'',imageUrl:''},blocks:[{type:'textParagraph',text:'Message simple sans décoration.'}]}};
+    if(T[key])setConfig(c=>({...c,...T[key]}));
+  };
+
+  const handleSend=async()=>{
+    setSending(true);
+    try{
+      await onSendReal(currentHook.url,payload);
+      setSentSummary({when:"à l'instant",target:currentHook.name,count:parsed.rows.length,title:config.header.title||'Sans titre'});
+      setStep(4);
+    }catch(e){alert('Erreur : '+e.message);}
+    setSending(false);
+  };
+
+  return(
+    <div className="wz-root">
+      <div className="brand-strip"/>
+      <header className="wz-top"><div className="ws-brand"><div className="ws-logo">CV</div><div><div className="ws-title">Card V2 Studio</div><div className="ws-sub">Mode guidé · Wizard</div></div></div><div className="chip">workspace · wizard</div></header>
+      <div className="wz-stepper">{steps.map((s,i)=><React.Fragment key={s.key}><button className={`wz-step ${i===step?'on':''} ${i<step?'done':''}`} onClick={()=>i<=step&&setStep(i)} disabled={i>step}><div className="wz-step-num">{i<step?'✓':i+1}</div><div className="wz-step-text"><div className="wz-step-title">{s.title}</div><div className="wz-step-sub">{s.sub}</div></div></button>{i<steps.length-1&&<div className={`wz-step-line ${i<step?'done':''}`}/>}</React.Fragment>)}</div>
+      <div className="wz-content scroll">
+        {step===0&&<div className="wz-step-content"><h2 className="wz-h">Vers quel salon envoyer ?</h2><p className="wz-p">Sélectionnez un webhook enregistré ou ajoutez-en un nouveau.</p><div className="wz-hook-grid">{webhooks.map(w=><button key={w.id} className={`wz-hook-card ${selectedHook===w.id?'on':''}`} onClick={()=>setSelectedHook(w.id)}><div className="wz-hook-card-h"><div className="wz-hook-card-name">{w.name}</div>{w.favorite&&<span className="chip warn">★ favori</span>}</div><div className="wz-hook-card-url mono">{w.url.slice(0,48)}…</div><div className="wz-hook-card-meta"><span className="muted small">Dernier envoi : {w.lastUsed}</span>{selectedHook===w.id&&<span className="chip accent">✓ sélectionné</span>}</div></button>)}</div><div className="wz-add-hook"><div className="label" style={{marginBottom:8}}>+ Ajouter un webhook</div><div className="row" style={{gap:8}}><input className="input" placeholder="Nom" style={{flex:1}} id="wz-new-name"/><input className="input mono" placeholder="https://chat.googleapis.com/v1/spaces/…" style={{flex:2}} id="wz-new-url"/><button className="btn primary" onClick={()=>{const n=document.getElementById('wz-new-name').value,u=document.getElementById('wz-new-url').value;if(n&&u){setWebhooks(w=>[...w,{id:'wh'+Date.now(),name:n,url:u,favorite:false,lastUsed:'jamais'}]);document.getElementById('wz-new-name').value='';document.getElementById('wz-new-url').value='';}}}>Ajouter</button></div></div></div>}
+        {step===1&&<div className="wz-step-content"><h2 className="wz-h">Collez vos données</h2><p className="wz-p">Depuis Google Sheets, Notion, un CSV ou un JSON brut.</p><div className="wz-data-split"><div className="col" style={{gap:8}}><div className="row" style={{justifyContent:'space-between'}}><span className="label">Source</span><div className="row" style={{gap:6}}><select className="select" style={{width:'auto'}} value={format} onChange={e=>setFormat(e.target.value)}><option value="auto">Auto</option><option value="tsv">TSV</option><option value="csv">CSV</option><option value="json">JSON</option><option value="html">HTML</option></select><button className="btn sm" onClick={()=>setPasteText(SAMPLE_TSV)}>Exemple</button></div></div><textarea className="textarea" style={{minHeight:280}} value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="Collez ici…"/></div><div className="col" style={{gap:8}}><div className="row" style={{justifyContent:'space-between'}}><span className="label">Aperçu · {parsed.rows.length} lignes</span>{parsed.error&&<span className="chip err">Erreur</span>}</div><div className="data-table-wrap scroll" style={{maxHeight:280}}><table className="data-table"><thead><tr>{parsed.headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{parsed.rows.map((r,i)=><tr key={i}>{parsed.headers.map(h=><td key={h}>{r[h]}</td>)}</tr>)}</tbody></table></div>{parsed.headers.length>0&&<div className="row" style={{flexWrap:'wrap',gap:4}}><span className="small muted">Variables :</span>{parsed.headers.map(h=><span key={h} className="chip mono" style={{fontSize:10}}>{`{{${h}}}`}</span>)}</div>}</div></div></div>}
+        {step===2&&<div className="wz-step-content"><h2 className="wz-h">Choisissez un template</h2><p className="wz-p">Puis personnalisez le titre et le sous-titre.</p><div className="wz-template-grid">{[{key:'teamUpdate',name:'Compte-rendu réunion',desc:'1 item par ligne avec icône, sujet, détails',icon:'📝'},{key:'announcement',name:'Annonce',desc:'Message large avec bouton CTA',icon:'📣'},{key:'metrics',name:'Métriques',desc:'Tableau de chiffres + lien dashboard',icon:'📊'},{key:'incident',name:'Incident',desc:'Alerte avec timestamp + action',icon:'🛟'},{key:'minimal',name:'Minimal',desc:'Texte simple, pas de header',icon:'◦'}].map(t=><button key={t.key} className={`wz-template ${template===t.key?'on':''}`} onClick={()=>applyTemplate(t.key)}><div className="wz-template-icon">{t.icon}</div><div className="wz-template-name">{t.name}</div><div className="wz-template-desc">{t.desc}</div></button>)}</div><div className="wz-card-edit"><div className="col" style={{gap:10}}><span className="label">Personnalisation</span>{config.header.enabled&&<><input className="input" placeholder="Titre" value={config.header.title} onChange={e=>setConfig(c=>({...c,header:{...c.header,title:e.target.value}}))}/><input className="input" placeholder="Sous-titre" value={config.header.subtitle} onChange={e=>setConfig(c=>({...c,header:{...c.header,subtitle:e.target.value}}))}/></>}<label className="row" style={{gap:6}}><input type="checkbox" checked={config.header.enabled} onChange={e=>setConfig(c=>({...c,header:{...c.header,enabled:e.target.checked}}))}/><span className="small">Inclure un header</span></label><div className="row" style={{gap:6}}><span className="small muted">Mode :</span><button className={`btn sm ${config.mode==='perRow'?'primary':''}`} onClick={()=>setConfig(c=>({...c,mode:'perRow'}))}>1 section / ligne</button><button className={`btn sm ${config.mode==='summary'?'primary':''}`} onClick={()=>setConfig(c=>({...c,mode:'summary'}))}>Résumé</button></div></div><div className="wz-card-preview"><div className="label" style={{marginBottom:8}}>Aperçu</div><CardPreview payload={payload} sender="AppScript Bot"/></div></div></div>}
+        {step===3&&<div className="wz-step-content"><h2 className="wz-h">Vérifiez avant d'envoyer</h2><p className="wz-p">Tout est prêt. Récapitulatif avant publication.</p><div className="wz-recap-grid"><div className="wz-recap-card"><div className="wz-recap-label">Destination</div><div className="wz-recap-value"><b>{currentHook?.name}</b></div><div className="mono small muted" style={{marginTop:4,wordBreak:'break-all'}}>{currentHook?.url.slice(0,64)}…</div></div><div className="wz-recap-card"><div className="wz-recap-label">Contenu</div><div className="wz-recap-value">{config.header.title||'Sans titre'}</div><div className="small muted" style={{marginTop:4}}>{config.mode==='perRow'?`${parsed.rows.length} sections (1 par ligne)`:'1 section résumé'} · {config.blocks.length} blocs</div></div><div className="wz-recap-card"><div className="wz-recap-label">Données</div><div className="wz-recap-value">{parsed.rows.length} lignes × {parsed.headers.length} colonnes</div><div className="small muted" style={{marginTop:4}}>Format : {(parsed.format||'tsv').toUpperCase()}</div></div></div><div className="wz-final-preview"><CardPreview payload={payload} sender="AppScript Bot"/></div></div>}
+        {step===4&&<div className="wz-done"><div className="wz-done-check">✓</div><h2 style={{margin:0}}>Message envoyé</h2><p className="muted" style={{margin:'4px 0 24px'}}>Votre carte a été publiée avec succès.</p><div className="wz-done-recap"><div><span className="label">Salon</span><span><b>{sentSummary?.target}</b></span></div><div><span className="label">Titre</span><span>{sentSummary?.title}</span></div><div><span className="label">Sections</span><span>{sentSummary?.count}</span></div><div><span className="label">Envoyé</span><span>{sentSummary?.when}</span></div></div><div className="row" style={{gap:8,marginTop:24}}><button className="btn" onClick={()=>{setStep(0);setSentSummary(null);}}>← Nouveau message</button></div></div>}
+      </div>
+      {step<4&&<div className="wz-nav"><button className="btn ghost" disabled={step===0} onClick={()=>setStep(s=>s-1)}>← Précédent</button><div className="wz-nav-count">Étape {step+1} / 4</div>{step<3?<button className="btn primary" onClick={()=>setStep(s=>s+1)} disabled={(step===0&&!selectedHook)||(step===1&&!parsed.rows.length)}>Suivant →</button>:<button className="btn primary" disabled={sending} onClick={handleSend}>{sending?'Envoi…':`Envoyer sur ${currentHook?.name} →`}</button>}</div>}
+    </div>
+  );
+}
+
+// ── NotebookLayout ────────────────────────────────────────────────────
+function NotebookLayout({onSendReal}){
+  const [webhooks,setWebhooks]=useState(SAMPLE_WEBHOOKS);
+  const [selectedHook,setSelectedHook]=useState('wh1');
+  const [pasteText,setPasteText]=useState(SAMPLE_TSV);
+  const [format,setFormat]=useState('auto');
+  const [config,setConfig]=useState(DEFAULT_CONFIG);
+  const [activeFile,setActiveFile]=useState('builder.cv2');
+  const [consoleOpen,setConsoleOpen]=useState(true);
+  const [showConfirm,setShowConfirm]=useState(false);
+  const [toasts,setToasts]=useState([]);
+  const [history,setHistory]=useState(SAMPLE_HISTORY);
+  const [sending,setSending]=useState(false);
+
+  const parsed=useMemo(()=>parseAny(pasteText,format),[pasteText,format]);
+  const payload=useMemo(()=>buildCard(config,parsed),[config,parsed]);
+  const currentHook=webhooks.find(w=>w.id===selectedHook);
+
+  const pushToast=(msg,kind='ok')=>{const id=Date.now();setToasts(t=>[...t,{id,msg,kind}]);setTimeout(()=>setToasts(t=>t.filter(x=>x.id!==id)),2500);};
+
+  const updateBlock=(idx,patch)=>setConfig(c=>({...c,blocks:c.blocks.map((b,i)=>i===idx?{...b,...patch}:b)}));
+  const removeBlock=(idx)=>setConfig(c=>({...c,blocks:c.blocks.filter((_,i)=>i!==idx)}));
+  const moveBlock=(idx,dir)=>{const ni=idx+dir;if(ni<0||ni>=config.blocks.length)return;setConfig(c=>{const next=[...c.blocks];[next[idx],next[ni]]=[next[ni],next[idx]];return{...c,blocks:next};});};
+  const addBlock=(block)=>setConfig(c=>({...c,blocks:[...c.blocks,block]}));
+
+  const addBlockTemplate=(type)=>{const T={textParagraph:{type:'textParagraph',text:'Nouveau paragraphe — <b>gras</b>'},decoratedText:{type:'decoratedText',icon:'STAR',topLabel:'Label',text:'<b>Texte</b>',bottomLabel:''},image:{type:'image',url:'',alt:''},divider:{type:'divider'},buttonList:{type:'buttonList',buttons:[{text:'Action',url:'https://'}]},columns:{type:'columns',cols:[{text:'Col 1'},{text:'Col 2'}]},tableFromData:{type:'tableFromData'}};addBlock(T[type]||{type});};
+
+  const handleSend=async()=>{
+    setSending(true);
+    const newEntry={id:'h'+Date.now(),when:"à l'instant",target:currentHook.name,title:config.header.title,count:parsed.rows.length,status:'ok'};
+    try{
+      await onSendReal(currentHook.url,payload);
+      setHistory(h=>[newEntry,...h]);
+      setShowConfirm(false);
+      pushToast(`POST → ${currentHook.name}  · 200 OK`,'ok');
+    }catch(e){
+      setHistory(h=>[{...newEntry,status:'failed'},...h]);
+      setShowConfirm(false);
+      pushToast('Erreur : '+e.message,'err');
+    }
+    setSending(false);
+  };
+
+  return(
+    <div className="nb-root">
+      <div className="brand-strip"/>
+      <div className="nb-menubar">
+        <div className="ws-brand"><div className="ws-logo">CV</div><div><div className="ws-title">Card V2 Studio</div><div className="ws-sub mono">notebook · v1.0.0</div></div></div>
+        <div className="nb-menu-mid"><select className="select mono" value={selectedHook} onChange={e=>setSelectedHook(e.target.value)} style={{width:280}}>{webhooks.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select><span className="chip mono">live</span></div>
+        <div className="row" style={{gap:6}}><button className="btn" onClick={()=>pushToast('Test envoyé (dry-run)','ok')}>▶ Run test</button><button className="btn primary" onClick={()=>setShowConfirm(true)}>⚡ Deploy</button></div>
+      </div>
+      <div className="nb-tabs">
+        {[{id:'builder.cv2',label:'builder.cv2',icon:'◆'},{id:'data.tsv',label:'data.tsv',icon:'▤'},{id:'webhooks.json',label:'webhooks.json',icon:'⚡'},{id:'history.log',label:'history.log',icon:'◷'}].map(f=><button key={f.id} className={`nb-tab ${activeFile===f.id?'on':''}`} onClick={()=>setActiveFile(f.id)}><span className="nb-tab-icon">{f.icon}</span><span>{f.label}</span></button>)}
+        <div className="spacer"/>
+        <div className="row" style={{gap:12,paddingRight:12}}><span className="small muted mono">UTF-8</span><span className="small muted mono">{parsed.rows.length}r × {parsed.headers.length}c</span></div>
+      </div>
+      <div className="nb-main">
+        <section className="nb-editor scroll">
+          {activeFile==='builder.cv2'&&(
+            <div className="nb-cells">
+              <div className="nb-cell"><div className="nb-cell-gutter"><div className="nb-cell-num">[h]</div></div><div className="nb-cell-body"><div className="nb-cell-h"><span className="mono small">// header</span><label className="row" style={{gap:4}}><input type="checkbox" checked={config.header.enabled} onChange={e=>setConfig(c=>({...c,header:{...c.header,enabled:e.target.checked}}))}/><span className="small mono">enabled</span></label></div>{config.header.enabled&&<div className="col" style={{gap:6}}><input className="input mono" placeholder="title" value={config.header.title} onChange={e=>setConfig(c=>({...c,header:{...c.header,title:e.target.value}}))}/><input className="input mono" placeholder="subtitle" value={config.header.subtitle} onChange={e=>setConfig(c=>({...c,header:{...c.header,subtitle:e.target.value}}))}/><input className="input mono" placeholder="imageUrl" value={config.header.imageUrl} onChange={e=>setConfig(c=>({...c,header:{...c.header,imageUrl:e.target.value}}))}/></div>}</div></div>
+              <div className="nb-cell"><div className="nb-cell-gutter"><div className="nb-cell-num">[m]</div></div><div className="nb-cell-body"><div className="nb-cell-h"><span className="mono small">// generation mode</span></div><div className="seg"><button className={`seg-btn ${config.mode==='perRow'?'on':''}`} onClick={()=>setConfig(c=>({...c,mode:'perRow'}))}><div className="mono"><b>perRow()</b></div><div className="small muted mono">rows w/ dividers</div></button><button className={`seg-btn ${config.mode==='summary'?'on':''}`} onClick={()=>setConfig(c=>({...c,mode:'summary'}))}><div className="mono"><b>summary()</b></div><div className="small muted mono">all rows → 1 section</div></button></div>{config.mode==='perRow'&&<input className="input mono" style={{marginTop:8}} placeholder="sectionHeader" value={config.sectionHeader||''} onChange={e=>setConfig(c=>({...c,sectionHeader:e.target.value}))}/>}</div></div>
+              {config.blocks.map((b,i)=><div key={i} className="nb-cell"><div className="nb-cell-gutter"><div className="nb-cell-num">[{i+1}]</div><button className="nb-cell-mini" disabled={i===0} onClick={()=>moveBlock(i,-1)}>↑</button><button className="nb-cell-mini" disabled={i===config.blocks.length-1} onClick={()=>moveBlock(i,1)}>↓</button><button className="nb-cell-mini danger" onClick={()=>removeBlock(i)}>×</button></div><div className="nb-cell-body"><div className="nb-cell-h"><span className="mono small">{`// ${b.type}`}</span></div><BlockEditor block={b} idx={i} onChange={p=>updateBlock(i,p)} onRemove={()=>removeBlock(i)} onMoveUp={()=>moveBlock(i,-1)} onMoveDown={()=>moveBlock(i,1)} canUp={i>0} canDown={i<config.blocks.length-1}/></div></div>)}
+              <div className="nb-add"><span className="mono small muted">+ Add cell:</span>{['decoratedText','textParagraph','image','divider','buttonList','columns',...(config.mode==='summary'?['tableFromData']:[])].map(t=><button key={t} className="btn sm" onClick={()=>addBlockTemplate(t)}>{`+ ${t}`}</button>)}</div>
+              {parsed.headers.length>0&&<div className="nb-vars"><span className="mono small muted">// available vars:</span>{parsed.headers.map(h=><span key={h} className="chip mono accent" style={{fontSize:10}}>{`{{${h}}}`}</span>)}</div>}
+            </div>
+          )}
+          {activeFile==='data.tsv'&&(
+            <div className="nb-file">
+              <div className="nb-file-h"><span className="mono small"><b>data.tsv</b> · {parsed.rows.length} rows</span><div className="row" style={{gap:6}}><select className="select mono" style={{width:'auto'}} value={format} onChange={e=>setFormat(e.target.value)}><option value="auto">auto</option><option value="tsv">tsv</option><option value="csv">csv</option><option value="json">json</option><option value="html">html</option></select><button className="btn sm" onClick={()=>setPasteText(SAMPLE_TSV)}>sample</button></div></div>
+              <textarea className="textarea" style={{minHeight:220,borderRadius:0,borderLeft:'none',borderRight:'none'}} value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="// paste from Sheets/Notion/CSV/JSON…"/>
+              <div className="data-table-wrap scroll" style={{maxHeight:280,borderRadius:0,border:'none'}}><table className="data-table"><thead><tr>{parsed.headers.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{parsed.rows.map((r,i)=><tr key={i}>{parsed.headers.map(h=><td key={h} className="mono">{r[h]}</td>)}</tr>)}</tbody></table></div>
+            </div>
+          )}
+          {activeFile==='webhooks.json'&&(
+            <div className="nb-file" style={{padding:16}}>
+              <div className="mono small muted" style={{marginBottom:12}}>{`// webhooks.json — ${webhooks.length} entries`}</div>
+              <div className="col" style={{gap:6}}>
+                {webhooks.map(w=><div key={w.id} className="nb-hook-row"><button className="btn icon ghost sm" onClick={()=>setWebhooks(ws=>ws.map(x=>x.id===w.id?{...x,favorite:!x.favorite}:x))}><span style={{color:w.favorite?'var(--warn)':'var(--text-3)'}}>★</span></button><span className="mono" style={{minWidth:180}}>{w.name}</span><input className="input mono small" defaultValue={w.url} onBlur={e=>setWebhooks(ws=>ws.map(x=>x.id===w.id?{...x,url:e.target.value}:x))} style={{flex:1}}/><button className="btn icon danger sm" onClick={()=>setWebhooks(ws=>ws.filter(x=>x.id!==w.id))}>×</button></div>)}
+              </div>
+              <div className="row" style={{gap:6,marginTop:12,paddingTop:12,borderTop:'1px dashed var(--border)'}}><input className="input mono" placeholder="name" id="nb-new-name" style={{flex:1}}/><input className="input mono" placeholder="url" id="nb-new-url" style={{flex:2}}/><button className="btn primary" onClick={()=>{const n=document.getElementById('nb-new-name').value,u=document.getElementById('nb-new-url').value;if(n&&u){setWebhooks(w=>[...w,{id:'wh'+Date.now(),name:n,url:u,favorite:false,lastUsed:'jamais'}]);document.getElementById('nb-new-name').value='';document.getElementById('nb-new-url').value='';}}}>+ add</button></div>
+            </div>
+          )}
+          {activeFile==='history.log'&&(
+            <div className="nb-file">
+              <div className="nb-file-h"><span className="mono small"><b>history.log</b> · {history.length} entries</span></div>
+              {history.map(h=><div key={h.id} className="nb-hist-line"><span className="mono small muted" style={{minWidth:100}}>{h.when}</span><span className={`chip mono ${h.status==='ok'?'ok':'err'}`}>{h.status==='ok'?'200':'500'}</span><span className="mono small" style={{minWidth:180}}>{h.target}</span><span className="mono small" style={{flex:1}}>{h.title}</span><span className="mono small muted">{h.count} row(s)</span><button className="btn sm" onClick={()=>pushToast('Renvoyé','ok')}>↻</button></div>)}
+            </div>
+          )}
+        </section>
+        <section className="nb-preview">
+          <div className="nb-pane-h"><span className="mono small">// preview ↳ rendered payload</span><div className="row" style={{gap:6}}><span className="chip mono">cardsV2[{payload.cardsV2.length}]</span><span className="chip mono accent">live</span></div></div>
+          <div className="nb-preview-body scroll"><CardPreview payload={payload} sender="AppScript Bot"/>{parsed.rows.length>1&&config.mode==='perRow'&&<div className="muted small mono" style={{marginTop:12,padding:'8px 12px',background:'var(--surface-2)',borderRadius:6}}>{`// section répétée ${parsed.rows.length}× selon data.tsv`}</div>}</div>
+        </section>
+      </div>
+      <div className={`nb-console ${consoleOpen?'open':''}`}>
+        <div className="nb-console-h" onClick={()=>setConsoleOpen(o=>!o)}><span className="mono small"><b>≡ Console</b> · JSON payload</span><span className="muted small">{consoleOpen?'▾':'▴'}</span></div>
+        {consoleOpen&&<div className="nb-console-body scroll"><JsonView data={payload}/></div>}
+      </div>
+      <div className="toast-stack">{toasts.map(t=><div key={t.id} className={`toast ${t.kind}`}><span style={{color:t.kind==='ok'?'var(--ok)':'var(--err)'}}>{t.kind==='ok'?'✓':'⚠'}</span><span className="mono small">{t.msg}</span></div>)}</div>
+      {showConfirm&&<div className="modal-bg" onClick={()=>setShowConfirm(false)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="modal-h"><h3 className="mono">POST /messages</h3><p className="mono small">→ {currentHook?.name}</p></div><div className="modal-b"><div className="recap"><div className="recap-row"><span className="mono small">target</span><span className="mono">{currentHook?.name}</span></div><div className="recap-row"><span className="mono small">sections</span><span className="mono">{config.mode==='perRow'?parsed.rows.length:1}</span></div><div className="recap-row"><span className="mono small">data.rows</span><span className="mono">{parsed.rows.length}</span></div></div><div className="recap-preview"><CardPreview payload={payload} sender="AppScript Bot"/></div></div><div className="modal-f"><button className="btn ghost" onClick={()=>setShowConfirm(false)}>Abort</button><button className="btn primary" disabled={sending} onClick={handleSend}>{sending?'Deploying…':'Confirm ⚡ deploy'}</button></div></div></div>}
+    </div>
+  );
+}
+
+// ── App root ─────────────────────────────────────────────────────────
+function App(){
+  const [layout,setLayout]=useState(()=>localStorage.getItem('cv2_layout')||'workspace');
+  const [webhooks,setWebhooks]=useState(SAMPLE_WEBHOOKS);
+  const [initialized,setInitialized]=useState(false);
+
+  useEffect(()=>{
+    // Load webhooks from AppScript if available
+    if(GAS.isGAS){
+      GAS.call('getWebhooks').then(whs=>{if(whs&&whs.length)setWebhooks(whs);}).catch(()=>{}).finally(()=>setInitialized(true));
+    } else {
+      setInitialized(true);
+    }
+  },[]);
+
+  const switchLayout=(l)=>{setLayout(l);localStorage.setItem('cv2_layout',l);};
+
+  const handleSendReal=async(url,payload)=>{
+    if(GAS.isGAS){
+      return GAS.call('sendWebhook',url,payload);
+    } else {
+      // Simulation mode hors AppScript
+      console.log('SIMULATION — payload envoyé :',JSON.stringify(payload,null,2));
+      await new Promise(r=>setTimeout(r,800));
+      // Décommentez la ligne suivante pour tester un vrai webhook en standalone :
+      // const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      // if(!r.ok)throw new Error('HTTP '+r.status);
+      return {ok:true,simulated:true};
+    }
+  };
+
+  if(!initialized)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--text-3)',fontFamily:'var(--font-mono)',fontSize:13}}>Chargement…</div>;
+
+  return(
+    <>
+      <div className="lp-switcher">
+        <div className="lp-switch-brand"><div className="lp-switch-logo">CV</div><span>Card V2 Studio</span></div>
+        <div className="lp-tabs">
+          <button className={`lp-tab ${layout==='workspace'?'on':''}`} onClick={()=>switchLayout('workspace')}>A · Workspace</button>
+          <button className={`lp-tab ${layout==='wizard'?'on':''}`} onClick={()=>switchLayout('wizard')}>B · Wizard</button>
+          <button className={`lp-tab ${layout==='notebook'?'on':''}`} onClick={()=>switchLayout('notebook')}>C · Notebook</button>
+        </div>
+        <span className="lp-meta">{GAS.isGAS?'AppScript':'standalone (simulation)'}</span>
+      </div>
+      <div className="lp-stage">
+        {layout==='workspace'&&<WorkspaceLayout onSendReal={handleSendReal}/>}
+        {layout==='wizard'&&<WizardLayout onSendReal={handleSendReal}/>}
+        {layout==='notebook'&&<NotebookLayout onSendReal={handleSendReal}/>}
+      </div>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
