@@ -128,43 +128,94 @@ export function Transport({ onSave }: TransportProps) {
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0
 
+  // Glissement de la barre de progression (souris + tactile via Pointer Events)
+  const progressDraggingRef = useRef(false)
+
+  const timeFromClientX = useCallback((clientX: number, el: HTMLElement) => {
+    const rect = el.getBoundingClientRect()
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    return ratio * duration
+  }, [duration])
+
+  const handleProgressPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (duration <= 0) return
+    const newTime = timeFromClientX(e.clientX, e.currentTarget)
+
+    // Mode réglage de boucle : un tap alimente le champ IN/OUT actif (pas de drag)
+    if (activeLoopField) {
+      if (activeLoopField === 'start') {
+        const clamped = Math.max(0, Math.min(newTime, loopEnd > 0 ? loopEnd - 0.1 : duration))
+        setLoopPoints(clamped, loopEnd)
+        engine.setLoop(loopEnabled && loopEnd > clamped, clamped, loopEnd)
+        setActiveLoopField('end')
+      } else {
+        const clamped = Math.max(loopStart + 0.1, Math.min(newTime, duration))
+        setLoopPoints(loopStart, clamped)
+        engine.setLoop(loopEnabled, loopStart, clamped)
+        setActiveLoopField(null)
+      }
+      return
+    }
+
+    // Démarrer le glissement : seek continu jusqu'au relâchement
+    progressDraggingRef.current = true
+    try { e.currentTarget.setPointerCapture(e.pointerId) } catch {}
+    engine.seekTo(newTime, isPlaying ? tracks : undefined)
+    setCurrentTime(newTime)
+  }, [duration, timeFromClientX, activeLoopField, loopEnd, loopStart, loopEnabled, engine, isPlaying, tracks, setLoopPoints, setActiveLoopField, setCurrentTime])
+
+  const handleProgressPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!progressDraggingRef.current) return
+    const newTime = timeFromClientX(e.clientX, e.currentTarget)
+    engine.seekTo(newTime, isPlaying ? tracks : undefined)
+    setCurrentTime(newTime)
+  }, [timeFromClientX, engine, isPlaying, tracks, setCurrentTime])
+
+  const handleProgressPointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!progressDraggingRef.current) return
+    progressDraggingRef.current = false
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+  }, [])
+
   // Barre de progression — réutilisée sur les 2 layouts
+  // py-2 agrandit la zone tactile sans changer l'épaisseur visuelle ;
+  // touchAction:'none' empêche le scroll de la page pendant le glissement.
   const progressBar = (
-    <div className="flex-1 relative h-2 rounded-full overflow-hidden cursor-pointer"
-      style={{ background: 'var(--border)' }}
-      onClick={(e) => {
-        const rect = e.currentTarget.getBoundingClientRect()
-        const ratio = (e.clientX - rect.left) / rect.width
-        const newTime = ratio * duration
-        if (activeLoopField) {
-          if (activeLoopField === 'start') {
-            const clamped = Math.max(0, Math.min(newTime, loopEnd > 0 ? loopEnd - 0.1 : duration))
-            setLoopPoints(clamped, loopEnd)
-            engine.setLoop(loopEnabled && loopEnd > clamped, clamped, loopEnd)
-            setActiveLoopField('end')
-          } else {
-            const clamped = Math.max(loopStart + 0.1, Math.min(newTime, duration))
-            setLoopPoints(loopStart, clamped)
-            engine.setLoop(loopEnabled, loopStart, clamped)
-            setActiveLoopField(null)
-          }
-          return
-        }
-        engine.seekTo(newTime, isPlaying ? tracks : undefined)
-        setCurrentTime(newTime)
-      }}
+    <div
+      className="flex-1 relative flex items-center py-2 cursor-pointer"
+      style={{ touchAction: 'none' }}
+      onPointerDown={handleProgressPointerDown}
+      onPointerMove={handleProgressPointerMove}
+      onPointerUp={handleProgressPointerUp}
+      onPointerCancel={handleProgressPointerUp}
     >
-      <div
-        className="absolute h-full rounded-full transition-none"
-        style={{ width: `${progress}%`, background: 'var(--accent)' }}
-      />
-      {loopEnabled && duration > 0 && loopEnd > loopStart && (
+      <div className="relative w-full h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
         <div
-          className="absolute h-full"
+          className="absolute h-full rounded-full transition-none"
+          style={{ width: `${progress}%`, background: 'var(--accent)' }}
+        />
+        {loopEnabled && duration > 0 && loopEnd > loopStart && (
+          <div
+            className="absolute h-full"
+            style={{
+              left: `${(loopStart / duration) * 100}%`,
+              width: `${((loopEnd - loopStart) / duration) * 100}%`,
+              background: 'rgba(99,102,241,0.3)',
+            }}
+          />
+        )}
+      </div>
+      {/* Curseur (thumb) déplaçable — repère visuel + cible tactile */}
+      {duration > 0 && (
+        <div
+          className="absolute top-1/2 rounded-full pointer-events-none"
           style={{
-            left: `${(loopStart / duration) * 100}%`,
-            width: `${((loopEnd - loopStart) / duration) * 100}%`,
-            background: 'rgba(99,102,241,0.3)',
+            left: `${progress}%`,
+            transform: 'translate(-50%, -50%)',
+            width: 14,
+            height: 14,
+            background: 'var(--accent)',
+            boxShadow: '0 0 0 3px var(--surface)',
           }}
         />
       )}
