@@ -4,6 +4,7 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 import { X, Upload, FileText, AlignCenter } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { parseAnyLyrics, getCurrentLyricsLine } from '@/lib/lyrics/parseLyrics'
 import { cn } from '@/lib/utils'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
@@ -13,7 +14,12 @@ export function LyricsPanel() {
     lyrics, lyricsVisible, currentTime, isPlaying, userRole,
     setLyrics, setLyricsVisible, setLyricsOffset,
     tracks, setCurrentTime,
-  } = useAudioStore()
+  } = useAudioStore(useShallow(s => ({
+    lyrics: s.lyrics, lyricsVisible: s.lyricsVisible, currentTime: s.currentTime,
+    isPlaying: s.isPlaying, userRole: s.userRole,
+    setLyrics: s.setLyrics, setLyricsVisible: s.setLyricsVisible, setLyricsOffset: s.setLyricsOffset,
+    tracks: s.tracks, setCurrentTime: s.setCurrentTime,
+  })))
 
   const isAdmin = userRole === 'admin'
 

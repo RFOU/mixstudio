@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Toaster } from "@/components/ui/Toast";
 
 export const metadata: Metadata = {
   title: "MixStudio — Player Audio Multipiste",
@@ -42,6 +43,7 @@ export default function RootLayout({
       </head>
       <body className="antialiased">
         {children}
+        <Toaster />
         {/* Enregistrement Service Worker + auto-refresh quand une nouvelle version arrive */}
         <script dangerouslySetInnerHTML={{ __html: `
           if ('serviceWorker' in navigator) {

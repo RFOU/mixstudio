@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { getFile } from '@/lib/fileRegistry'
 import { APP_VERSION } from '@/lib/version'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
@@ -19,7 +20,12 @@ interface StudioHeaderProps {
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 export function StudioHeader({ onOpenProjects, onOpenAuth }: StudioHeaderProps) {
-  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject, lyrics, setUserRole, loopPresets, loopEnabled, loopStart, loopEnd } = useAudioStore()
+  const { lyricsVisible, setLyricsVisible, tracks, projectId, projectName, setProject, lyrics, setUserRole, loopPresets, loopEnabled, loopStart, loopEnd } = useAudioStore(useShallow(s => ({
+    lyricsVisible: s.lyricsVisible, setLyricsVisible: s.setLyricsVisible, tracks: s.tracks,
+    projectId: s.projectId, projectName: s.projectName, setProject: s.setProject,
+    lyrics: s.lyrics, setUserRole: s.setUserRole, loopPresets: s.loopPresets,
+    loopEnabled: s.loopEnabled, loopStart: s.loopStart, loopEnd: s.loopEnd,
+  })))
   const { theme, toggle: toggleTheme } = useTheme()
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [role, setRole] = useState<'admin' | 'viewer'>('viewer')

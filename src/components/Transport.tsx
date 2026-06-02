@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { formatTime } from '@/lib/utils'
 
@@ -22,7 +23,14 @@ export function Transport({ onSave }: TransportProps) {
     setIsPlaying, setCurrentTime, setDuration,
     setLoopEnabled, setZoomLevel,
     activeLoopField, setLoopPoints, setActiveLoopField,
-  } = useAudioStore()
+  } = useAudioStore(useShallow(s => ({
+    isPlaying: s.isPlaying, currentTime: s.currentTime, duration: s.duration,
+    loopEnabled: s.loopEnabled, loopStart: s.loopStart, loopEnd: s.loopEnd,
+    tracks: s.tracks, zoomLevel: s.zoomLevel, projectName: s.projectName,
+    setIsPlaying: s.setIsPlaying, setCurrentTime: s.setCurrentTime, setDuration: s.setDuration,
+    setLoopEnabled: s.setLoopEnabled, setZoomLevel: s.setZoomLevel,
+    activeLoopField: s.activeLoopField, setLoopPoints: s.setLoopPoints, setActiveLoopField: s.setActiveLoopField,
+  })))
 
   const engine = getAudioEngine()
   // hasAudio: vérifie le moteur (source de vérité) ET le store comme fallback

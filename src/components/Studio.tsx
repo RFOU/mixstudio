@@ -10,6 +10,7 @@ import { StudioHeader } from '@/components/StudioHeader'
 import { AuthModal } from '@/components/AuthModal'
 import { ProjectsModal } from '@/components/ProjectsModal'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import type { PendingTrackRow } from '@/store/audioStore'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { createClient } from '@/lib/supabase/client'
@@ -31,7 +32,15 @@ export function Studio() {
     setProject, addTrack, clearTracks, setDuration, setPendingLoad,
     setCurrentTime, setIsPlaying, setLoading, setLyrics, setLyricsVisible,
     setLoopPoints, setLoopEnabled, addLoopPreset,
-  } = useAudioStore()
+  } = useAudioStore(useShallow(s => ({
+    isLoading: s.isLoading, loadingMessage: s.loadingMessage, lyricsVisible: s.lyricsVisible,
+    projectId: s.projectId, pendingLoad: s.pendingLoad,
+    setProject: s.setProject, addTrack: s.addTrack, clearTracks: s.clearTracks,
+    setDuration: s.setDuration, setPendingLoad: s.setPendingLoad,
+    setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying, setLoading: s.setLoading,
+    setLyrics: s.setLyrics, setLyricsVisible: s.setLyricsVisible,
+    setLoopPoints: s.setLoopPoints, setLoopEnabled: s.setLoopEnabled, addLoopPreset: s.addLoopPreset,
+  })))
 
   const engine = getAudioEngine()
   // Client stable via ref
@@ -117,7 +126,7 @@ export function Studio() {
         }
 
         await engine.loadBufferFromUrl(track.id, signedUrl, cacheHint)
-        const waveformData = engine.generateWaveformData(track.id)
+        const waveformData = await engine.generateWaveformDataAsync(track.id)
 
         addTrack({
           id: track.id,

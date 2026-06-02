@@ -5,10 +5,12 @@ import { Upload, PlusCircle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { TrackRow } from '@/components/TrackRow'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { registerFile, removeFile } from '@/lib/fileRegistry'
 import { formatFileSize } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from '@/components/ui/Toast'
 import { v4 as uuidv4 } from 'uuid'
 
 const TRACK_COLORS = [
@@ -17,7 +19,14 @@ const TRACK_COLORS = [
 ]
 
 const ACCEPTED_TYPES = '.mp3,.wav,.flac,.ogg,.aac,.m4a'
+const ACCEPTED_EXT_RE = /\.(mp3|wav|flac|ogg|aac|m4a)$/i
 const MAX_FILE_SIZE = 300 * 1024 * 1024 // 300 MB
+const MAX_TRACKS = 16
+
+/** Validation côté client : extension OU type MIME audio (le navigateur ne fournit pas toujours le MIME). */
+function isAcceptedAudioFile(file: File): boolean {
+  return ACCEPTED_EXT_RE.test(file.name) || file.type.startsWith('audio/')
+}
 
 interface MultitrackPanelProps {
   compact?: boolean
@@ -28,7 +37,11 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
     tracks, isPlaying, userRole,
     addTrack, removeTrack, setLoading,
     setDuration, setCurrentTime, setIsPlaying,
-  } = useAudioStore()
+  } = useAudioStore(useShallow(s => ({
+    tracks: s.tracks, isPlaying: s.isPlaying, userRole: s.userRole,
+    addTrack: s.addTrack, removeTrack: s.removeTrack, setLoading: s.setLoading,
+    setDuration: s.setDuration, setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying,
+  })))
 
   const isAdmin = userRole === 'admin'
 
@@ -38,8 +51,12 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
   const supabase = supabaseRef.current
 
   const loadAudioFile = useCallback(async (file: File) => {
+    if (!isAcceptedAudioFile(file)) {
+      toast.error(`Format non supporté : ${file.name} (MP3, WAV, FLAC, OGG, AAC, M4A)`)
+      return
+    }
     if (file.size > MAX_FILE_SIZE) {
-      alert(`Fichier trop grand : ${formatFileSize(file.size)} (max 300 MB)`)
+      toast.error(`Fichier trop grand : ${formatFileSize(file.size)} (max 300 MB)`)
       return
     }
 
@@ -48,7 +65,7 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
     try {
       const trackId = uuidv4()
       const buffer = await engine.loadBuffer(trackId, file)
-      const waveformData = engine.generateWaveformData(trackId)
+      const waveformData = await engine.generateWaveformDataAsync(trackId)
 
       // Stocker la référence File dans le registry externe (Immer ne peut pas sérialiser File)
       registerFile(trackId, file)
@@ -79,19 +96,40 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
       }
     } catch (err) {
       console.error('Erreur chargement audio:', err)
-      alert('Erreur lors du chargement du fichier audio')
+      toast.error(`Erreur lors du chargement de ${file.name}`)
     } finally {
       setLoading(false)
     }
   }, [engine, tracks.length, isPlaying, addTrack, setLoading, setDuration, setCurrentTime, setIsPlaying])
 
   const handleFiles = useCallback((files: FileList | File[]) => {
-    const fileArray = Array.from(files)
-    const audioFiles = fileArray.filter(
-      f => f.type.startsWith('audio/') || /\.(mp3|wav|flac|ogg|aac|m4a)$/i.test(f.name)
-    )
-    audioFiles.forEach(f => loadAudioFile(f))
-  }, [loadAudioFile])
+    const audioFiles = Array.from(files).filter(isAcceptedAudioFile)
+
+    if (audioFiles.length === 0) {
+      toast.error('Aucun fichier audio valide (MP3, WAV, FLAC, OGG, AAC, M4A)')
+      return
+    }
+
+    // Respecter la limite de pistes (drag-drop / multi-sélection inclus)
+    const available = MAX_TRACKS - tracks.length
+    if (available <= 0) {
+      toast.error(`Limite atteinte : ${MAX_TRACKS} pistes maximum`)
+      return
+    }
+
+    const toLoad = audioFiles.slice(0, available)
+    if (audioFiles.length > available) {
+      toast.error(`Seules ${available} piste(s) ajoutée(s) — limite de ${MAX_TRACKS} pistes`)
+    }
+
+    // Chargement séquentiel : évite que plusieurs fichiers lisent la même valeur
+    // périmée de tracks.length (position/couleur) et de saturer le décodage.
+    void (async () => {
+      for (const f of toLoad) {
+        await loadAudioFile(f)
+      }
+    })()
+  }, [loadAudioFile, tracks.length])
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
@@ -128,13 +166,13 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
         style={{ background: 'var(--surface)', borderColor: 'var(--border)' }}
       >
         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-          Pistes ({tracks.length}/16)
+          Pistes ({tracks.length}/{MAX_TRACKS})
         </span>
         {isAdmin && (
           <Button
             variant="ghost" size="sm"
             onClick={() => fileInputRef.current?.click()}
-            disabled={tracks.length >= 16}
+            disabled={tracks.length >= MAX_TRACKS}
           >
             <Upload size={14} className="mr-1" />
             Importer
@@ -192,7 +230,7 @@ export function MultitrackPanel({ compact = false }: MultitrackPanelProps) {
                 />
               ))}
 
-            {isAdmin && tracks.length < 16 && (
+            {isAdmin && tracks.length < MAX_TRACKS && (
               <button
                 className="w-full py-3 flex items-center justify-center gap-2 text-sm transition-colors"
                 style={{ color: 'var(--text-muted)', background: 'transparent' }}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Slider } from '@/components/ui/Slider'
 import { WaveformCanvas } from '@/components/WaveformCanvas'
 import { TrackData, useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
@@ -32,7 +33,17 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
     updateTrack,
     setCurrentTime,
     activeLoopField, setLoopPoints, setLoopEnabled, setActiveLoopField,
-  } = useAudioStore()
+  } = useAudioStore(useShallow(s => ({
+    tracks: s.tracks, currentTime: s.currentTime, duration: s.duration,
+    loopEnabled: s.loopEnabled, loopStart: s.loopStart, loopEnd: s.loopEnd,
+    isPlaying: s.isPlaying, projectId: s.projectId,
+    setTrackMute: s.setTrackMute, setTrackSolo: s.setTrackSolo,
+    setTrackVolume: s.setTrackVolume,
+    updateTrack: s.updateTrack,
+    setCurrentTime: s.setCurrentTime,
+    activeLoopField: s.activeLoopField, setLoopPoints: s.setLoopPoints,
+    setLoopEnabled: s.setLoopEnabled, setActiveLoopField: s.setActiveLoopField,
+  })))
 
   const engine = getAudioEngine()
   const supabaseRef = useRef(createClient())

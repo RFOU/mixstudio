@@ -5,6 +5,7 @@ import { FolderOpen, Plus, Trash2, Clock, X, Music2, AlertCircle, CheckCircle2, 
 import { Button } from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { Database } from '@/lib/supabase/types'
 import { getFile } from '@/lib/fileRegistry'
 
@@ -17,7 +18,9 @@ interface ProjectsModalProps {
 }
 
 export function ProjectsModal({ onClose, onLoadProject }: ProjectsModalProps) {
-  const { projectName, tracks, setProject } = useAudioStore()
+  const { projectName, tracks, setProject } = useAudioStore(useShallow(s => ({
+    projectName: s.projectName, tracks: s.tracks, setProject: s.setProject,
+  })))
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { AppNav } from '@/components/AppNav'
 import type { Database } from '@/lib/supabase/types'
@@ -40,7 +41,10 @@ export function ProjectsPage() {
   const {
     setProject, setPendingLoad, clearTracks,
     setCurrentTime, setIsPlaying,
-  } = useAudioStore()
+  } = useAudioStore(useShallow(s => ({
+    setProject: s.setProject, setPendingLoad: s.setPendingLoad, clearTracks: s.clearTracks,
+    setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying,
+  })))
 
   const engine = getAudioEngine()
 

@@ -10,6 +10,7 @@ import {
   UserPlus, X, Mail, Lock, User,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { toast } from '@/components/ui/Toast'
 import { AppNav } from '@/components/AppNav'
 import type { Database } from '@/lib/supabase/types'
 
@@ -79,7 +80,7 @@ export function AdminUsersPage() {
 
   const handleRoleChange = async (userId: string, newRole: Role) => {
     if (userId === currentUserId && newRole !== 'admin') {
-      alert('Vous ne pouvez pas vous retirer le rôle admin.')
+      toast.error('Vous ne pouvez pas vous retirer le rôle admin.')
       return
     }
     setUpdatingId(userId)

@@ -42,6 +42,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Email et mot de passe requis' }, { status: 400 })
   }
 
+  // Validation runtime : email plausible, mot de passe minimal, rôle dans l'enum autorisé
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  if (!emailRe.test(email)) {
+    return NextResponse.json({ error: 'Email invalide' }, { status: 400 })
+  }
+  if (typeof password !== 'string' || password.length < 8) {
+    return NextResponse.json({ error: 'Le mot de passe doit faire au moins 8 caractères' }, { status: 400 })
+  }
+  if (role !== undefined && role !== 'admin' && role !== 'viewer') {
+    return NextResponse.json({ error: 'Rôle invalide' }, { status: 400 })
+  }
+
   // 3. Créer l'utilisateur avec le client service_role
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceKey) {

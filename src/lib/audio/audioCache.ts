@@ -18,6 +18,10 @@ const DB_NAME = 'mixstudio-audio-cache'
 const DB_VERSION = 1
 const STORE_NAME = 'audio'
 
+// Limite globale du cache : au-delà, on évince les entrées les plus anciennes (LRU par cachedAt).
+// 1 Go est un compromis raisonnable (mobile compris) ; le quota navigateur reste prioritaire.
+const MAX_CACHE_BYTES = 1024 * 1024 * 1024
+
 interface CacheEntry {
   key: string          // "{storagePath}@{fileSize}"
   storagePath: string
@@ -169,9 +173,30 @@ export async function putCachedAudio(
       data,
       cachedAt: Date.now(),
     })
+
+    // Éviction LRU si on dépasse la limite globale
+    await evictIfNeeded(db)
   } catch (err) {
     // Cache write failure is non-fatal — fall back to network
     console.warn('[audioCache] putCachedAudio failed:', err)
+  }
+}
+
+/**
+ * Évince les entrées les plus anciennes (par cachedAt) tant que la taille
+ * totale du cache dépasse MAX_CACHE_BYTES.
+ */
+async function evictIfNeeded(db: IDBDatabase): Promise<void> {
+  const all = await idbGetAll(db)
+  let total = all.reduce((sum, e) => sum + (e.data?.byteLength ?? e.fileSize ?? 0), 0)
+  if (total <= MAX_CACHE_BYTES) return
+
+  // Plus ancien en premier
+  const sorted = all.sort((a, b) => a.cachedAt - b.cachedAt)
+  for (const entry of sorted) {
+    if (total <= MAX_CACHE_BYTES) break
+    await idbDelete(db, entry.key)
+    total -= entry.data?.byteLength ?? entry.fileSize ?? 0
   }
 }
 

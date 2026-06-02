@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react'
 import { Repeat, Plus, Trash2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { useAudioStore } from '@/store/audioStore'
+import { useShallow } from 'zustand/react/shallow'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { formatTime } from '@/lib/utils'
 import { v4 as uuidv4 } from 'uuid'
@@ -19,7 +20,14 @@ export function LoopPanel({ presetsOnly = false }: LoopPanelProps) {
     setLoopEnabled, setLoopPoints, addLoopPreset, removeLoopPreset,
     tracks, isPlaying, setIsPlaying, setCurrentTime,
     setActiveLoopField,
-  } = useAudioStore()
+  } = useAudioStore(useShallow(s => ({
+    loopEnabled: s.loopEnabled, loopStart: s.loopStart, loopEnd: s.loopEnd,
+    loopPresets: s.loopPresets, duration: s.duration,
+    setLoopEnabled: s.setLoopEnabled, setLoopPoints: s.setLoopPoints,
+    addLoopPreset: s.addLoopPreset, removeLoopPreset: s.removeLoopPreset,
+    tracks: s.tracks, isPlaying: s.isPlaying, setIsPlaying: s.setIsPlaying,
+    setCurrentTime: s.setCurrentTime, setActiveLoopField: s.setActiveLoopField,
+  })))
 
   const engine = getAudioEngine()
   const [presetName, setPresetName] = useState('')

@@ -3,6 +3,10 @@
 import { TrackData } from '@/store/audioStore'
 import { getCachedAudio, putCachedAudio } from '@/lib/audio/audioCache'
 
+// Logs de debug uniquement en développement — silencieux en production
+const isDev = process.env.NODE_ENV !== 'production'
+const devLog = (...args: unknown[]) => { if (isDev) console.debug(...args) }
+
 interface TrackNode {
   id: string
   sourceNode: AudioBufferSourceNode | null
@@ -203,13 +207,13 @@ export class AudioEngine {
     if (cacheHint) {
       arrayBuffer = await getCachedAudio(cacheHint.storagePath, cacheHint.fileSize)
       if (arrayBuffer) {
-        console.debug(`[AudioEngine] Cache hit: ${cacheHint.storagePath}`)
+        devLog(`[AudioEngine] Cache hit: ${cacheHint.storagePath}`)
       }
     }
 
     // Fetch from network if not cached
     if (!arrayBuffer) {
-      console.debug(`[AudioEngine] Cache miss, fetching: ${cacheHint?.storagePath ?? url}`)
+      devLog(`[AudioEngine] Cache miss, fetching: ${cacheHint?.storagePath ?? url}`)
       const response = await fetch(url)
       arrayBuffer = await response.arrayBuffer()
 
@@ -522,6 +526,39 @@ export class AudioEngine {
         if (val > max) max = val
       }
       waveform[i] = max
+    }
+
+    return waveform
+  }
+
+  /**
+   * Version non-bloquante de generateWaveformData.
+   * Découpe le calcul en tranches et rend la main au thread principal entre
+   * chaque tranche, afin de ne pas geler l'UI sur de gros fichiers (~100+ Mo).
+   */
+  async generateWaveformDataAsync(trackId: string, samples: number = 200): Promise<Float32Array> {
+    const buffer = this.audioBuffers.get(trackId)
+    if (!buffer) return new Float32Array(samples)
+
+    const channelData = buffer.getChannelData(0)
+    const blockSize = Math.floor(channelData.length / samples)
+    const waveform = new Float32Array(samples)
+
+    // ~8 tranches : compromis entre fluidité et surcoût de yield
+    const CHUNK = Math.max(1, Math.ceil(samples / 8))
+
+    for (let start = 0; start < samples; start += CHUNK) {
+      const end = Math.min(start + CHUNK, samples)
+      for (let i = start; i < end; i++) {
+        let max = 0
+        for (let j = 0; j < blockSize; j++) {
+          const val = Math.abs(channelData[i * blockSize + j])
+          if (val > max) max = val
+        }
+        waveform[i] = max
+      }
+      // Rend la main au navigateur entre deux tranches
+      if (end < samples) await new Promise<void>(resolve => setTimeout(resolve, 0))
     }
 
     return waveform
