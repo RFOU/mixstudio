@@ -287,7 +287,10 @@ export function Studio() {
           </div>
         </div>
         {lyricsVisible && (
-          <div className="flex flex-col flex-1 overflow-hidden min-h-0">
+          // Mobile : colonne pleine hauteur (flex-1). Desktop : panneau latéral
+          // dimensionné par son contenu (flex-none) pour que la zone pistes
+          // occupe tout l'espace restant au lieu de laisser un vide à droite.
+          <div className="flex flex-col flex-1 sm:flex-none overflow-hidden min-h-0">
             {/* Presets de boucle en mode mobile + paroles */}
             {isMobile && <LoopPanel presetsOnly />}
             <LyricsPanel />

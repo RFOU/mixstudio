@@ -77,7 +77,7 @@ export function LyricsPanel() {
 
   return (
     <div
-      className="flex flex-col border-t sm:border-t-0 sm:border-l flex-1 sm:flex-none sm:w-[300px] sm:min-w-[240px] sm:max-w-[400px]"
+      className="flex flex-col border-t sm:border-t-0 sm:border-l flex-1 sm:flex-none sm:w-[320px] lg:w-[380px] xl:w-[440px] sm:min-w-[260px]"
       style={{
         minHeight: 0,
         background: 'var(--surface)',
