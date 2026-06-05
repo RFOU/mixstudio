@@ -8,12 +8,14 @@
  * Note : Les fichiers audio sont gérés par IndexedDB (audioCache.ts), pas par ce SW.
  */
 
-const CACHE_NAME = 'mixstudio-shell-v2'
+// Bump à chaque besoin de purge complète du shell.
+// L'activate supprime tous les caches != CACHE_NAME → l'ancien JV figé disparaît.
+const CACHE_NAME = 'mixstudio-shell-v3'
 
+// On ne précache PAS /projects ni /studio : routes auth-gated, addAll y cacherait
+// une redirection/HTML de login. La navigation est network-first de toute façon.
 const PRECACHE_URLS = [
   '/',
-  '/projects',
-  '/studio',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/icons/apple-touch-icon.png',
@@ -50,17 +52,19 @@ self.addEventListener('fetch', (event) => {
     request.destination === 'image' ||
     request.destination === 'font'
   ) {
+    // Stale-while-revalidate : on sert le cache vite, mais on refetch en fond
+    // et on met le cache à jour. Le prochain chargement reçoit le code frais.
+    // Évite qu'un chunk bugué reste servi indéfiniment (cache-first le faisait).
     event.respondWith(
-      caches.match(request).then(cached => {
-        if (cached) return cached
-        return fetch(request).then(response => {
-          if (response.ok) {
-            const clone = response.clone()
-            caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
-          }
-          return response
+      caches.open(CACHE_NAME).then(cache =>
+        cache.match(request).then(cached => {
+          const network = fetch(request).then(response => {
+            if (response.ok) cache.put(request, response.clone())
+            return response
+          }).catch(() => cached)
+          return cached || network
         })
-      })
+      )
     )
     return
   }
