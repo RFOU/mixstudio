@@ -87,6 +87,13 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
     engine.updateTrackAudio({ ...track, volume })
   }, [engine, track, setTrackVolume])
 
+  // Pendant le scrub : déplace seulement la tête de lecture (léger).
+  // Ne relance PAS l'audio — sinon iOS Safari crashe (trop de sources créées).
+  const handleScrub = useCallback((time: number) => {
+    if (activeLoopField) return // la sélection loop est gérée au relâchement
+    setCurrentTime(time)
+  }, [activeLoopField, setCurrentTime])
+
   const handleSeek = useCallback((time: number) => {
     // Si un champ loop (IN/OUT) est actif, alimenter ce champ au lieu de seek
     if (activeLoopField) {
@@ -214,7 +221,7 @@ export function TrackRow({ track, index, onRemove, compact = false }: TrackRowPr
             height={compact ? 28 : 48}
             loopStart={loopStart} loopEnd={loopEnd} loopEnabled={loopEnabled}
             muted={track.muted || (hasSolo && !track.soloed)}
-            onSeek={handleSeek} showLoop
+            onSeek={handleScrub} onSeekCommit={handleSeek} showLoop
           />
         </div>
 

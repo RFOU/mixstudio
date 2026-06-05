@@ -12,7 +12,10 @@ interface WaveformCanvasProps {
   loopEnd?: number
   loopEnabled?: boolean
   muted?: boolean
+  /** Live preview pendant le scrub — déplace seulement la tête de lecture (léger) */
   onSeek?: (time: number) => void
+  /** Validation au relâchement — relance réellement l'audio (coûteux) */
+  onSeekCommit?: (time: number) => void
   onLoopSelect?: (start: number, end: number) => void
   showLoop?: boolean
 }
@@ -28,6 +31,7 @@ export function WaveformCanvas({
   loopEnabled = false,
   muted = false,
   onSeek,
+  onSeekCommit,
   onLoopSelect,
   showLoop = false,
 }: WaveformCanvasProps) {
@@ -150,7 +154,12 @@ export function WaveformCanvas({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // mount only — draw is called explicitly via the ResizeObserver and the draw useEffect below
 
-  const getTimeFromX = (e: React.MouseEvent | MouseEvent) => {
+  // Dernière position pointée — validée (audio relancé) au relâchement seulement.
+  // Évite de relancer toutes les sources audio à chaque move : sur iOS Safari
+  // le nombre d'AudioBufferSourceNode est limité et le scrub faisait crasher l'onglet.
+  const lastTimeRef = useRef(0)
+
+  const getTimeFromX = (e: React.PointerEvent | PointerEvent) => {
     const canvas = canvasRef.current
     if (!canvas || duration === 0) return 0
     const rect = canvas.getBoundingClientRect()
@@ -158,19 +167,25 @@ export function WaveformCanvas({
     return Math.max(0, Math.min(duration, (x / rect.width) * duration))
   }
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
     if (e.shiftKey && onLoopSelect) {
       isLoopDragRef.current = true
       dragStartXRef.current = getTimeFromX(e)
-    } else if (onSeek) {
+    } else if (onSeek || onSeekCommit) {
       isDraggingRef.current = true
-      onSeek(getTimeFromX(e))
+      // Capture le pointeur : move/up suivis même si le doigt sort du canvas
+      canvasRef.current?.setPointerCapture(e.pointerId)
+      const t = getTimeFromX(e)
+      lastTimeRef.current = t
+      onSeek?.(t) // preview visuel uniquement
     }
   }
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (isDraggingRef.current && onSeek) {
-      onSeek(getTimeFromX(e))
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (isDraggingRef.current && (onSeek || onSeekCommit)) {
+      const t = getTimeFromX(e)
+      lastTimeRef.current = t
+      onSeek?.(t) // déplace juste la tête de lecture, ne relance PAS l'audio
     }
     if (isLoopDragRef.current && onLoopSelect) {
       const start = Math.min(dragStartXRef.current, getTimeFromX(e))
@@ -179,7 +194,12 @@ export function WaveformCanvas({
     }
   }
 
-  const handleMouseUp = () => {
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (isDraggingRef.current) {
+      canvasRef.current?.releasePointerCapture?.(e.pointerId)
+      // Relance l'audio une seule fois, à la position finale
+      onSeekCommit?.(lastTimeRef.current)
+    }
     isDraggingRef.current = false
     isLoopDragRef.current = false
   }
@@ -187,11 +207,16 @@ export function WaveformCanvas({
   return (
     <canvas
       ref={canvasRef}
-      style={{ width: '100%', height, cursor: onSeek ? 'pointer' : 'default', display: 'block' }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
+      style={{
+        width: '100%', height,
+        cursor: (onSeek || onSeekCommit) ? 'pointer' : 'default',
+        display: 'block',
+        touchAction: 'none', // empêche le scroll/zoom natif iOS pendant le scrub
+      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
     />
   )
 }
