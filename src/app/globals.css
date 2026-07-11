@@ -38,11 +38,23 @@
   box-sizing: border-box;
 }
 
+/* Hauteur d'écran réelle : sur iOS Safari, 100vh inclut la zone masquée par la
+   barre d'outils → bas de l'UI (transport, boucle) coupé. 100dvh suit la
+   hauteur réellement visible. Fallback 100vh pour les vieux navigateurs. */
+:root {
+  --vh-screen: 100vh;
+}
+@supports (height: 100dvh) {
+  :root {
+    --vh-screen: 100dvh;
+  }
+}
+
 html, body {
   background: var(--background);
   color: var(--text);
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  height: 100vh;
+  height: var(--vh-screen);
   overflow: hidden;
   margin: 0;
   padding: 0;

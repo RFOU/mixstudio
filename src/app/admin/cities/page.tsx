@@ -8,7 +8,7 @@ const AdminCitiesPage = dynamic(
     ssr: false,
     loading: () => (
       <div style={{
-        height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        height: 'var(--vh-screen)', display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: '#0a0a0f', color: '#6366f1', fontFamily: 'monospace', fontSize: 14, gap: 8,
       }}>
         <span style={{

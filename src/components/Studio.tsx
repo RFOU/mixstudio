@@ -15,7 +15,7 @@ import type { PendingTrackRow } from '@/store/audioStore'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { createClient } from '@/lib/supabase/client'
 import { parseAnyLyrics } from '@/lib/lyrics/parseLyrics'
-import { hasCachedAudio } from '@/lib/audio/audioCache'
+import { getCachedAudio, putCachedAudio } from '@/lib/audio/audioCache'
 import type { Database } from '@/lib/supabase/types'
 
 type Project = Database['public']['Tables']['projects']['Row']
@@ -29,13 +29,13 @@ export function Studio() {
   const router = useRouter()
   const {
     isLoading, loadingMessage, lyricsVisible, projectId, pendingLoad,
-    setProject, addTrack, clearTracks, setDuration, setPendingLoad,
+    setProject, addTrack, updateTrack, clearTracks, setDuration, setPendingLoad,
     setCurrentTime, setIsPlaying, setLoading, setLyrics, setLyricsVisible,
     setLoopPoints, setLoopEnabled, addLoopPreset,
   } = useAudioStore(useShallow(s => ({
     isLoading: s.isLoading, loadingMessage: s.loadingMessage, lyricsVisible: s.lyricsVisible,
     projectId: s.projectId, pendingLoad: s.pendingLoad,
-    setProject: s.setProject, addTrack: s.addTrack, clearTracks: s.clearTracks,
+    setProject: s.setProject, addTrack: s.addTrack, updateTrack: s.updateTrack, clearTracks: s.clearTracks,
     setDuration: s.setDuration, setPendingLoad: s.setPendingLoad,
     setCurrentTime: s.setCurrentTime, setIsPlaying: s.setIsPlaying, setLoading: s.setLoading,
     setLyrics: s.setLyrics, setLyricsVisible: s.setLyricsVisible,
@@ -78,83 +78,116 @@ export function Studio() {
       return
     }
 
-    let loaded = 0
+    const rows = tracks.filter(t => t.storage_path)
+    const total = rows.length
 
-    for (const track of tracks) {
-      if (!track.storage_path) continue
+    /** URL signée : route serveur (tous rôles), repli client direct (admins). */
+    const getSignedUrl = async (storagePath: string, name: string): Promise<string | null> => {
+      const res = await fetch('/api/audio/signed-url', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storagePath }),
+      })
+      if (res.ok) {
+        const { signedUrl } = await res.json()
+        return signedUrl ?? null
+      }
+      let errMsg = res.statusText
+      try { const j = await res.json(); errMsg = j.error ?? errMsg } catch {}
+      console.warn(`Signed URL API (${res.status}) pour "${name}": ${errMsg} — fallback client`)
+      const { data, error } = await supabase.storage
+        .from('audio-files')
+        .createSignedUrl(storagePath, 3600)
+      if (error || !data?.signedUrl) {
+        console.error(`Fallback signed URL échoué pour "${name}":`, error?.message ?? 'no url')
+        return null
+      }
+      return data.signedUrl
+    }
 
-      try {
-        const cacheHint = track.file_size
-          ? { storagePath: track.storage_path, fileSize: track.file_size }
-          : undefined
+    // Phase 1 — réseau EN PARALLÈLE (cache ou signed URL + téléchargement).
+    // Le réseau est le poste le plus lent ; le paralléliser divise d'autant le
+    // temps d'ouverture (avant : tout était séquentiel piste par piste).
+    let fetched = 0
+    const prepared = await Promise.all(
+      rows.map(async (track) => {
+        const storagePath = track.storage_path as string
+        try {
+          const cacheHint = track.file_size
+            ? { storagePath, fileSize: track.file_size }
+            : undefined
 
-        const isCached = cacheHint ? await hasCachedAudio(cacheHint.storagePath, cacheHint.fileSize) : false
+          let data = cacheHint
+            ? await getCachedAudio(cacheHint.storagePath, cacheHint.fileSize)
+            : null
 
-        setLoading(true, isCached
-          ? `Piste ${loaded + 1}/${tracks.length} depuis le cache — ${track.name}`
-          : `Chargement piste ${loaded + 1}/${tracks.length} — ${track.name}`)
-
-        let signedUrl = ''
-        if (!isCached) {
-          // Try the server-side API route first (works for all roles, bypasses storage RLS)
-          const res = await fetch('/api/audio/signed-url', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ storagePath: track.storage_path }),
-          })
-
-          if (res.ok) {
-            const { signedUrl: url } = await res.json()
-            signedUrl = url
-          } else {
-            let errMsg = res.statusText
-            try { const j = await res.json(); errMsg = j.error ?? errMsg } catch {}
-            console.warn(`Signed URL API (${res.status}) pour "${track.name}": ${errMsg} — fallback client`)
-
-            // Fallback: try directly via browser Supabase client (works for admins)
-            const { data: fallbackData, error: fallbackErr } = await supabase.storage
-              .from('audio-files')
-              .createSignedUrl(track.storage_path, 3600)
-
-            if (fallbackErr || !fallbackData?.signedUrl) {
-              console.error(`Fallback signed URL échoué pour "${track.name}":`, fallbackErr?.message ?? 'no url')
-              continue
+          if (!data) {
+            const signedUrl = await getSignedUrl(storagePath, track.name)
+            if (!signedUrl) return null
+            const res = await fetch(signedUrl)
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            data = await res.arrayBuffer()
+            if (cacheHint) {
+              putCachedAudio(cacheHint.storagePath, cacheHint.fileSize, data.slice(0))
+                .catch(err => console.warn('[Studio] cache write failed:', err))
             }
-            signedUrl = fallbackData.signedUrl
           }
+
+          setLoading(true, `Téléchargement ${++fetched}/${total}`)
+          return { track, data }
+        } catch (err) {
+          console.error(`Erreur téléchargement piste "${track.name}":`, err)
+          return null
         }
+      })
+    )
 
-        await engine.loadBufferFromUrl(track.id, signedUrl, cacheHint)
-        const waveformData = await engine.generateWaveformDataAsync(track.id)
-
+    // Phase 2 — décodage SÉQUENTIEL (borne la mémoire), piste jouable dès
+    // qu'elle est décodée. La forme d'onde n'est PAS attendue ici.
+    let loaded = 0
+    for (const item of prepared) {
+      if (!item) continue
+      try {
+        setLoading(true, `Décodage ${loaded + 1}/${total} — ${item.track.name}`)
+        await engine.loadBufferFromData(item.track.id, item.data)
         addTrack({
-          id: track.id,
-          name: track.name,
-          position: track.position,
-          volume: track.volume,
-          muted: track.muted,
-          soloed: track.soloed,
-          color: track.color,
-          waveformData,
-          storagePath: track.storage_path,
-          fileName: track.file_name,
-          fileSize: track.file_size,
-          duration: track.duration,
-          sampleRate: track.sample_rate,
+          id: item.track.id,
+          name: item.track.name,
+          position: item.track.position,
+          volume: item.track.volume,
+          muted: item.track.muted,
+          soloed: item.track.soloed,
+          color: item.track.color,
+          storagePath: item.track.storage_path,
+          fileName: item.track.file_name,
+          fileSize: item.track.file_size,
+          duration: item.track.duration,
+          sampleRate: item.track.sample_rate,
         })
-
         loaded++
       } catch (err) {
-        console.error(`Erreur chargement piste "${track.name}":`, err)
+        console.error(`Erreur décodage piste "${item.track.name}":`, err)
       }
     }
 
-    if (loaded === 0 && tracks.filter(t => t.storage_path).length > 0) {
+    if (loaded === 0 && total > 0) {
       console.error('Aucune piste chargée — vérifier l\'authentification et les politiques RLS')
     }
 
     setDuration(engine.getDuration())
+
+    // Phase 3 — formes d'onde EN TÂCHE DE FOND : l'ouverture n'attend pas leur
+    // calcul ; chaque waveform apparaît dès qu'elle est prête.
+    void (async () => {
+      for (const item of prepared) {
+        if (!item) continue
+        try {
+          const waveformData = await engine.generateWaveformDataAsync(item.track.id)
+          updateTrack(item.track.id, { waveformData })
+        } catch { /* non bloquant */ }
+      }
+    })()
 
     // Load lyrics
     const { data: lyricsData } = await supabase
@@ -212,7 +245,7 @@ export function Studio() {
     }
 
     setLoading(false)
-  }, [engine, supabase, addTrack, setDuration, setLoading, setLyrics, setLyricsVisible, addLoopPreset, setLoopPoints, setLoopEnabled])
+  }, [engine, supabase, addTrack, updateTrack, setDuration, setLoading, setLyrics, setLyricsVisible, addLoopPreset, setLoopPoints, setLoopEnabled])
 
   // Keep a stable ref to loadTracks so the pendingLoad effect doesn't re-fire on each render
   const loadTracksRef = useRef(loadTracks)
@@ -261,7 +294,7 @@ export function Studio() {
   return (
     <div
       className="flex flex-col"
-      style={{ height: '100vh', background: 'var(--background)', overflow: 'hidden' }}
+      style={{ height: 'var(--vh-screen)', background: 'var(--background)', overflow: 'hidden' }}
     >
       <StudioHeader
         onOpenProjects={() => setShowProjects(true)}

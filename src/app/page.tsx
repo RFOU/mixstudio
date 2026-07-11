@@ -51,7 +51,7 @@ export default function LandingPage() {
   const [showAuth, setShowAuth] = useState(false)
 
   return (
-    <div style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--background)' }}>
+    <div style={{ height: 'var(--vh-screen)', overflowY: 'auto', overflowX: 'hidden', background: 'var(--background)' }}>
 
       {/* NAV */}
       <AppNav>

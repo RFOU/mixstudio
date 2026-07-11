@@ -202,7 +202,7 @@ export function ProjectsPage() {
     new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
-    <div style={{ height: '100vh', overflowY: 'auto', overflowX: 'hidden', background: 'var(--background)' }}>
+    <div style={{ height: 'var(--vh-screen)', overflowY: 'auto', overflowX: 'hidden', background: 'var(--background)' }}>
 
       {/* NAV */}
       <AppNav>

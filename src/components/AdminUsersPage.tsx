@@ -154,7 +154,7 @@ export function AdminUsersPage() {
   const withCityCount = users.filter(u => u.city_id).length
 
   return (
-    <div style={{ height: '100vh', overflowY: 'auto', background: 'var(--background)' }}>
+    <div style={{ height: 'var(--vh-screen)', overflowY: 'auto', background: 'var(--background)' }}>
 
       {/* NAV */}
       <AppNav>

@@ -129,7 +129,7 @@ export function AdminCitiesPage() {
   }
 
   return (
-    <div style={{ height: '100vh', overflowY: 'auto', background: 'var(--background)' }}>
+    <div style={{ height: 'var(--vh-screen)', overflowY: 'auto', background: 'var(--background)' }}>
 
       {/* NAV */}
       <AppNav>

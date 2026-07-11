@@ -215,6 +215,11 @@ export class AudioEngine {
     if (!arrayBuffer) {
       devLog(`[AudioEngine] Cache miss, fetching: ${cacheHint?.storagePath ?? url}`)
       const response = await fetch(url)
+      // Sans ce garde, une réponse d'erreur (403/500) part dans decodeAudioData
+      // et produit une erreur de décodage cryptique au lieu du vrai problème.
+      if (!response.ok) {
+        throw new Error(`Téléchargement audio échoué (HTTP ${response.status})`)
+      }
       arrayBuffer = await response.arrayBuffer()
 
       // Store in cache for next time
@@ -224,7 +229,17 @@ export class AudioEngine {
       }
     }
 
-    const audioBuffer = await ctx.decodeAudioData(arrayBuffer)
+    return this.loadBufferFromData(trackId, arrayBuffer)
+  }
+
+  /**
+   * Décode un ArrayBuffer déjà téléchargé (le buffer est détaché par
+   * decodeAudioData — passer une copie si l'appelant veut le conserver).
+   * Permet de séparer le réseau (parallélisable) du décodage (séquentiel).
+   */
+  async loadBufferFromData(trackId: string, data: ArrayBuffer): Promise<AudioBuffer> {
+    const ctx = this.ensureContext()
+    const audioBuffer = await ctx.decodeAudioData(data)
     this.audioBuffers.set(trackId, audioBuffer)
 
     if (audioBuffer.duration > this.duration) {

@@ -9,7 +9,7 @@ const ProjectsPage = dynamic(
     loading: () => (
       <div
         style={{
-          height: '100vh',
+          height: 'var(--vh-screen)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

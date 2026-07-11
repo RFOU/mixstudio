@@ -104,11 +104,41 @@ function idbGetByIndex(db: IDBDatabase, indexName: string, value: string): Promi
   })
 }
 
-function idbGetAll(db: IDBDatabase): Promise<CacheEntry[]> {
+interface EntryMeta {
+  key: string
+  storagePath: string
+  fileSize: number
+  size: number
+  cachedAt: number
+}
+
+/**
+ * Parcourt le store au curseur et ne retient que les MÉTADONNÉES de chaque
+ * entrée. Contrairement à getAll(), une seule valeur (avec son ArrayBuffer)
+ * est en mémoire à la fois — getAll() matérialisait tout le cache (jusqu'à
+ * 1 Go) d'un coup, ce qui pouvait tuer l'onglet sur mobile.
+ */
+function idbListMeta(db: IDBDatabase): Promise<EntryMeta[]> {
   return new Promise((resolve, reject) => {
+    const metas: EntryMeta[] = []
     const tx = db.transaction(STORE_NAME, 'readonly')
-    const req = tx.objectStore(STORE_NAME).getAll()
-    req.onsuccess = () => resolve(req.result as CacheEntry[])
+    const req = tx.objectStore(STORE_NAME).openCursor()
+    req.onsuccess = () => {
+      const cursor = req.result
+      if (!cursor) {
+        resolve(metas)
+        return
+      }
+      const e = cursor.value as CacheEntry
+      metas.push({
+        key: e.key,
+        storagePath: e.storagePath,
+        fileSize: e.fileSize,
+        size: e.data?.byteLength ?? e.fileSize ?? 0,
+        cachedAt: e.cachedAt,
+      })
+      cursor.continue()
+    }
     req.onerror = () => reject(req.error)
   })
 }
@@ -187,16 +217,16 @@ export async function putCachedAudio(
  * totale du cache dépasse MAX_CACHE_BYTES.
  */
 async function evictIfNeeded(db: IDBDatabase): Promise<void> {
-  const all = await idbGetAll(db)
-  let total = all.reduce((sum, e) => sum + (e.data?.byteLength ?? e.fileSize ?? 0), 0)
+  const metas = await idbListMeta(db)
+  let total = metas.reduce((sum, m) => sum + m.size, 0)
   if (total <= MAX_CACHE_BYTES) return
 
   // Plus ancien en premier
-  const sorted = all.sort((a, b) => a.cachedAt - b.cachedAt)
-  for (const entry of sorted) {
+  const sorted = metas.sort((a, b) => a.cachedAt - b.cachedAt)
+  for (const meta of sorted) {
     if (total <= MAX_CACHE_BYTES) break
-    await idbDelete(db, entry.key)
-    total -= entry.data?.byteLength ?? entry.fileSize ?? 0
+    await idbDelete(db, meta.key)
+    total -= meta.size
   }
 }
 
@@ -208,17 +238,17 @@ export async function getCacheStats(): Promise<{
 }> {
   try {
     const db = await openDB()
-    const all = await idbGetAll(db)
+    const metas = await idbListMeta(db)
     let totalBytes = 0
-    const entries = all.map(entry => {
-      totalBytes += entry.fileSize
+    const entries = metas.map(m => {
+      totalBytes += m.size
       return {
-        storagePath: entry.storagePath,
-        fileSize: entry.fileSize,
-        cachedAt: new Date(entry.cachedAt).toISOString(),
+        storagePath: m.storagePath,
+        fileSize: m.fileSize,
+        cachedAt: new Date(m.cachedAt).toISOString(),
       }
     })
-    return { count: all.length, totalBytes, entries }
+    return { count: metas.length, totalBytes, entries }
   } catch {
     return { count: 0, totalBytes: 0, entries: [] }
   }
