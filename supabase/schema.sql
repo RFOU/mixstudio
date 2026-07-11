@@ -204,8 +204,13 @@ CREATE POLICY "Users can manage own sessions" ON public.project_sessions FOR ALL
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('audio-files', 'audio-files', false);
 
 -- Storage policies for audio files
-CREATE POLICY "Users can upload their audio files" ON storage.objects FOR INSERT
-  WITH CHECK (bucket_id = 'audio-files' AND auth.uid()::text = (storage.foldername(name))[1]);
+-- Import réservé aux admins (les viewers ne créent jamais de pistes)
+CREATE POLICY "Admins can upload audio files" ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'audio-files'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+    AND public.get_my_role() = 'admin'
+  );
 -- Viewers can access audio files of projects available in their city
 CREATE POLICY "Users can view audio files" ON storage.objects FOR SELECT
   USING (
@@ -241,3 +246,26 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Protection des colonnes sensibles de profiles : la policy UPDATE "own profile"
+-- couvre toutes les colonnes, donc sans ce trigger un viewer pourrait s'élever
+-- admin (SET role='admin') ou changer sa ville. Seuls un admin ou la clé
+-- service_role peuvent modifier role / city_id.
+CREATE OR REPLACE FUNCTION public.protect_profile_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (NEW.role IS DISTINCT FROM OLD.role
+      OR NEW.city_id IS DISTINCT FROM OLD.city_id)
+     AND auth.role() <> 'service_role'
+     AND public.get_my_role() IS DISTINCT FROM 'admin'
+  THEN
+    RAISE EXCEPTION 'Seul un admin peut modifier role ou city_id';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS protect_profile_columns ON public.profiles;
+CREATE TRIGGER protect_profile_columns
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profile_columns();
