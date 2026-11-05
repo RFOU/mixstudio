@@ -60,6 +60,8 @@ export interface LyricsLine {
   time: number
   text: string
   words?: { time: number; text: string }[]
+  /** Voix / tags de la ligne (ex. ["Soprane", "Alto"]) — pilote la couleur à la lecture. */
+  tags?: string[]
 }
 
 export interface LyricsData {
@@ -68,6 +70,8 @@ export interface LyricsData {
   lines: LyricsLine[]
   offsetMs: number
   rawContent: string
+  /** Couleur choisie par voix (nom → #hex). Absent = palette par défaut. */
+  voices?: Record<string, string>
 }
 
 interface AudioState {

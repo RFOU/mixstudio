@@ -197,12 +197,13 @@ export function Studio() {
       .single()
 
     if (lyricsData) {
-      const { lines, format } = parseAnyLyrics(lyricsData.content, lyricsData.format as 'lrc' | 'srt' | 'plain')
+      const { lines, format, voices } = parseAnyLyrics(lyricsData.content, lyricsData.format as 'lrc' | 'srt' | 'plain')
       setLyrics({
         format,
         lines,
         offsetMs: lyricsData.offset_ms ?? 0,
         rawContent: lyricsData.content,
+        voices,
       })
       setLyricsVisible(true)
     } else {

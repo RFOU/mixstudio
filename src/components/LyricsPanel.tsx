@@ -1,11 +1,13 @@
 'use client'
 
 import { useRef, useEffect, useCallback, useState } from 'react'
-import { X, Upload, FileText, AlignCenter } from 'lucide-react'
+import { X, Upload, FileText, AlignCenter, PencilLine } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { LyricsEditor } from '@/components/LyricsEditor'
 import { useAudioStore } from '@/store/audioStore'
+import type { LyricsLine } from '@/store/audioStore'
 import { useShallow } from 'zustand/react/shallow'
-import { parseAnyLyrics, getCurrentLyricsLine } from '@/lib/lyrics/parseLyrics'
+import { parseAnyLyrics, getCurrentLyricsLine, lineColor, voiceColor } from '@/lib/lyrics/parseLyrics'
 import { cn } from '@/lib/utils'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 
@@ -28,6 +30,12 @@ export function LyricsPanel() {
   const containerRef = useRef<HTMLDivElement>(null)
   const activeLyricsRef = useRef<HTMLDivElement>(null)
   const [isKaraokeMode, setIsKaraokeMode] = useState(true)
+  const [showEditor, setShowEditor] = useState(false)
+
+  // Voix présentes dans les paroles (légende + couleurs)
+  const voiceNames = lyrics
+    ? [...new Set(lyrics.lines.flatMap(l => l.tags ?? []))]
+    : []
 
   const currentLineIndex = lyrics
     ? getCurrentLyricsLine(lyrics.lines, currentTime, lyrics.offsetMs)
@@ -50,12 +58,13 @@ export function LyricsPanel() {
 
   const handleFileLoad = useCallback(async (file: File) => {
     const text = await file.text()
-    const { lines, format } = parseAnyLyrics(text)
+    const { lines, format, voices } = parseAnyLyrics(text)
     setLyrics({
       format,
       lines,
       offsetMs: 0,
       rawContent: text,
+      voices,
     })
   }, [setLyrics])
 
@@ -116,6 +125,15 @@ export function LyricsPanel() {
           {isAdmin && (
             <Button
               variant="ghost" size="icon"
+              onClick={() => setShowEditor(true)}
+              title="Éditeur : importer un PDF, horodater, générer le LRC"
+            >
+              <PencilLine size={14} />
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              variant="ghost" size="icon"
               onClick={() => fileInputRef.current?.click()}
               title="Importer paroles (LRC, SRT, TXT)"
             >
@@ -169,6 +187,21 @@ export function LyricsPanel() {
         </div>
       )}
 
+      {/* Légende des voix (couleurs à la lecture) */}
+      {voiceNames.length > 0 && (
+        <div
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5 border-b flex-shrink-0"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          {voiceNames.map(name => (
+            <span key={name} className="inline-flex items-center gap-1 text-xs" style={{ color: 'var(--text-muted)' }}>
+              <span className="w-2.5 h-2.5 rounded-full" style={{ background: voiceColor(name, lyrics?.voices) }} />
+              {name}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Content */}
       <div ref={containerRef} className="flex-1 overflow-y-auto p-3">
         {!lyrics ? (
@@ -180,11 +213,17 @@ export function LyricsPanel() {
             {isAdmin ? (
               <>
                 <p className="text-sm">Importez un fichier LRC, SRT ou TXT</p>
-                <p className="text-xs opacity-70">Cliquez sur l&apos;icône upload ci-dessus</p>
-                <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
-                  <Upload size={14} className="mr-1" />
-                  Importer
-                </Button>
+                <p className="text-xs opacity-70">ou créez les paroles depuis un PDF</p>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => fileInputRef.current?.click()}>
+                    <Upload size={14} className="mr-1" />
+                    Importer
+                  </Button>
+                  <Button size="sm" onClick={() => setShowEditor(true)}>
+                    <PencilLine size={14} className="mr-1" />
+                    Éditeur (PDF)
+                  </Button>
+                </div>
               </>
             ) : (
               <p className="text-sm">Aucune parole disponible</p>
@@ -193,47 +232,59 @@ export function LyricsPanel() {
         ) : isKaraokeMode ? (
           <KaraokeView
             lines={lyrics.lines}
+            voices={lyrics.voices}
             currentLineIndex={currentLineIndex}
             onSeek={handleSeekToLine}
           />
         ) : (
           <div className="space-y-0.5">
-            {lyrics.lines.map((line, index) => (
-              <div
-                key={index}
-                ref={index === currentLineIndex ? activeLyricsRef : undefined}
-                className={cn(
-                  'px-2 py-1.5 rounded text-sm cursor-pointer transition-all duration-200',
-                )}
-                style={{
-                  background: index === currentLineIndex ? 'var(--accent-dim)' : 'transparent',
-                  color: index === currentLineIndex ? 'var(--text)' : 'var(--text-muted)',
-                  borderLeft: index === currentLineIndex ? '2px solid var(--accent)' : '2px solid transparent',
-                  fontWeight: index === currentLineIndex ? 600 : 400,
-                  opacity: index === currentLineIndex ? 1 : 0.55,
-                }}
-                onClick={() => handleSeekToLine(line.time)}
-              >
-                {line.text}
-              </div>
-            ))}
+            {lyrics.lines.map((line, index) => {
+              const voice = lineColor(line, lyrics.voices)
+              const active = index === currentLineIndex
+              return (
+                <div
+                  key={index}
+                  ref={active ? activeLyricsRef : undefined}
+                  className={cn(
+                    'px-2 py-1.5 rounded text-sm cursor-pointer transition-all duration-200',
+                  )}
+                  style={{
+                    background: active ? 'var(--accent-dim)' : 'transparent',
+                    // Voix : la ligne prend la couleur de sa voix (sinon couleurs par défaut)
+                    color: voice ?? (active ? 'var(--text)' : 'var(--text-muted)'),
+                    borderLeft: `2px solid ${active ? (voice ?? 'var(--accent)') : (voice ?? 'transparent')}`,
+                    fontWeight: active ? 600 : 400,
+                    opacity: active ? 1 : 0.55,
+                  }}
+                  onClick={() => handleSeekToLine(line.time)}
+                >
+                  {line.text}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>
+      {showEditor && <LyricsEditor onClose={() => setShowEditor(false)} />}
     </div>
   )
 }
 
 function KaraokeView({
   lines,
+  voices,
   currentLineIndex,
   onSeek,
 }: {
-  lines: { time: number; text: string }[]
+  lines: LyricsLine[]
+  voices?: Record<string, string>
   currentLineIndex: number
   onSeek: (time: number) => void
 }) {
   const idx = currentLineIndex >= 0 ? currentLineIndex : -1
+  // Couleur d'une ligne = celle de sa voix ; sinon la couleur par défaut passée.
+  const tint = (line: LyricsLine | null, fallback: string) =>
+    (line && lineColor(line, voices)) || fallback
 
   const prev2 = idx >= 2 ? lines[idx - 2] : null
   const prev1 = idx >= 1 ? lines[idx - 1] : null
@@ -246,7 +297,7 @@ function KaraokeView({
       {prev2 && (
         <p
           className="text-xs cursor-pointer leading-snug w-full"
-          style={{ color: 'var(--text-muted)', opacity: 0.25 }}
+          style={{ color: tint(prev2, 'var(--text-muted)'), opacity: 0.3 }}
           onClick={() => onSeek(prev2.time)}
         >
           {prev2.text}
@@ -255,7 +306,7 @@ function KaraokeView({
       {prev1 && (
         <p
           className="text-sm cursor-pointer leading-snug w-full"
-          style={{ color: 'var(--text-muted)', opacity: 0.45 }}
+          style={{ color: tint(prev1, 'var(--text-muted)'), opacity: 0.5 }}
           onClick={() => onSeek(prev1.time)}
         >
           {prev1.text}
@@ -264,7 +315,7 @@ function KaraokeView({
       {current ? (
         <p
           className="text-lg font-bold leading-relaxed cursor-pointer w-full"
-          style={{ color: 'var(--accent)' }}
+          style={{ color: tint(current, 'var(--accent)') }}
           onClick={() => onSeek(current.time)}
         >
           {current.text}
@@ -275,7 +326,7 @@ function KaraokeView({
       {next1 && (
         <p
           className="text-sm cursor-pointer leading-snug w-full"
-          style={{ color: 'var(--text-muted)', opacity: 0.45 }}
+          style={{ color: tint(next1, 'var(--text-muted)'), opacity: 0.5 }}
           onClick={() => onSeek(next1.time)}
         >
           {next1.text}
@@ -284,7 +335,7 @@ function KaraokeView({
       {next2 && (
         <p
           className="text-xs cursor-pointer leading-snug w-full"
-          style={{ color: 'var(--text-muted)', opacity: 0.25 }}
+          style={{ color: tint(next2, 'var(--text-muted)'), opacity: 0.3 }}
           onClick={() => onSeek(next2.time)}
         >
           {next2.text}
