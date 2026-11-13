@@ -15,8 +15,12 @@
  */
 
 const DB_NAME = 'mixstudio-audio-cache'
-const DB_VERSION = 1
+// v2 : ajout des stores `projects` (instantanés de projets pour le hors-ligne)
+// et `meta` (infos utilisateur). Le store `audio` est inchangé.
+const DB_VERSION = 2
 const STORE_NAME = 'audio'
+export const PROJECTS_STORE = 'projects'
+export const META_STORE = 'meta'
 
 // Limite globale du cache : au-delà, on évince les entrées les plus anciennes (LRU par cachedAt).
 // 1 Go est un compromis raisonnable (mobile compris) ; le quota navigateur reste prioritaire.
@@ -36,7 +40,7 @@ function cacheKey(storagePath: string, fileSize: number): string {
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
-function openDB(): Promise<IDBDatabase> {
+export function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise
 
   dbPromise = new Promise((resolve, reject) => {
@@ -49,9 +53,24 @@ function openDB(): Promise<IDBDatabase> {
           const store = db.createObjectStore(STORE_NAME, { keyPath: 'key' })
           store.createIndex('storagePath', 'storagePath', { unique: false })
         }
+        if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
+          db.createObjectStore(PROJECTS_STORE, { keyPath: 'id' })
+        }
+        if (!db.objectStoreNames.contains(META_STORE)) {
+          db.createObjectStore(META_STORE, { keyPath: 'key' })
+        }
       }
 
-      req.onsuccess = (e) => resolve((e.target as IDBOpenDBRequest).result)
+      req.onsuccess = (e) => {
+        const db = (e.target as IDBOpenDBRequest).result
+        // Si un autre onglet (ancienne version) doit migrer la base, on ferme
+        // notre connexion au lieu de bloquer la mise à jour.
+        db.onversionchange = () => {
+          db.close()
+          dbPromise = null
+        }
+        resolve(db)
+      }
       req.onerror = (e) => {
         console.warn('[audioCache] IndexedDB open failed:', (e.target as IDBOpenDBRequest).error)
         dbPromise = null
@@ -216,17 +235,103 @@ export async function putCachedAudio(
  * Évince les entrées les plus anciennes (par cachedAt) tant que la taille
  * totale du cache dépasse MAX_CACHE_BYTES.
  */
-async function evictIfNeeded(db: IDBDatabase): Promise<void> {
+async function evictIfNeeded(db: IDBDatabase, maxBytes: number = MAX_CACHE_BYTES): Promise<void> {
   const metas = await idbListMeta(db)
   let total = metas.reduce((sum, m) => sum + m.size, 0)
-  if (total <= MAX_CACHE_BYTES) return
+  if (total <= maxBytes) return
+
+  // Les morceaux « disponibles hors-ligne » (épinglés) ne sont jamais évincés :
+  // c'est précisément ce que l'utilisateur a demandé de garder.
+  const pinned = await getPinnedProjectIds(db)
 
   // Plus ancien en premier
   const sorted = metas.sort((a, b) => a.cachedAt - b.cachedAt)
   for (const meta of sorted) {
-    if (total <= MAX_CACHE_BYTES) break
+    if (total <= maxBytes) break
+    const pid = projectIdFromStoragePath(meta.storagePath)
+    if (pid && pinned.has(pid)) continue
     await idbDelete(db, meta.key)
     total -= meta.size
+  }
+}
+
+/** Ramène le cache sous `maxBytes` (les morceaux épinglés sont épargnés). Surtout utile aux tests. */
+export async function trimAudioCache(maxBytes: number = MAX_CACHE_BYTES): Promise<void> {
+  try {
+    await evictIfNeeded(await openDB(), maxBytes)
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Les fichiers sont stockés sous `{userId}/{projectId}/{trackId}_{nom}` : le
+ * projet est le 2ᵉ segment. Permet de regrouper le cache par chanson.
+ */
+export function projectIdFromStoragePath(storagePath: string): string | null {
+  const parts = storagePath.split('/')
+  return parts.length >= 3 ? parts[1] : null
+}
+
+/** Ids des projets marqués « disponibles hors-ligne » (lecture sans charger l'audio). */
+function getPinnedProjectIds(db: IDBDatabase): Promise<Set<string>> {
+  return new Promise((resolve) => {
+    const ids = new Set<string>()
+    try {
+      const req = db.transaction(PROJECTS_STORE, 'readonly').objectStore(PROJECTS_STORE).openCursor()
+      req.onsuccess = () => {
+        const cursor = req.result
+        if (!cursor) return resolve(ids)
+        if (cursor.value?.pinned) ids.add(cursor.value.id as string)
+        cursor.continue()
+      }
+      req.onerror = () => resolve(ids)
+    } catch {
+      resolve(ids)
+    }
+  })
+}
+
+export interface CacheEntryInfo {
+  key: string
+  storagePath: string
+  projectId: string | null
+  size: number
+  cachedAt: number
+}
+
+/** Liste les entrées du cache audio (métadonnées seulement). */
+export async function listCacheEntries(): Promise<CacheEntryInfo[]> {
+  try {
+    const db = await openDB()
+    const metas = await idbListMeta(db)
+    return metas.map(m => ({
+      key: m.key,
+      storagePath: m.storagePath,
+      projectId: projectIdFromStoragePath(m.storagePath),
+      size: m.size,
+      cachedAt: m.cachedAt,
+    }))
+  } catch {
+    return []
+  }
+}
+
+/** Supprime tout l'audio en cache d'un projet. Retourne le nombre de fichiers supprimés. */
+export async function deleteCachedAudioByProject(projectId: string): Promise<number> {
+  try {
+    const db = await openDB()
+    const metas = await idbListMeta(db)
+    let n = 0
+    for (const m of metas) {
+      if (projectIdFromStoragePath(m.storagePath) === projectId) {
+        await idbDelete(db, m.key)
+        n++
+      }
+    }
+    return n
+  } catch {
+    return 0
   }
 }
 
@@ -257,8 +362,15 @@ export async function getCacheStats(): Promise<{
 /** Clear all cached audio (e.g. for a "clear cache" button) */
 export async function clearAudioCache(): Promise<void> {
   try {
-    indexedDB.deleteDatabase(DB_NAME)
-    dbPromise = null
+    // On ne vide que le store audio : supprimer toute la base effacerait aussi
+    // les instantanés de projets (infos nécessaires pour ouvrir hors-ligne).
+    const db = await openDB()
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite')
+      tx.objectStore(STORE_NAME).clear()
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
   } catch {
     // ignore
   }

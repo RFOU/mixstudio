@@ -10,7 +10,7 @@
 
 // Bump à chaque besoin de purge complète du shell.
 // L'activate supprime tous les caches != CACHE_NAME → l'ancien JV figé disparaît.
-const CACHE_NAME = 'mixstudio-shell-v3'
+const CACHE_NAME = 'mixstudio-shell-v4'
 
 // On ne précache PAS /projects ni /studio : routes auth-gated, addAll y cacherait
 // une redirection/HTML de login. La navigation est network-first de toute façon.
@@ -70,16 +70,24 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
+    // Network-first. Chaque page visitée avec réseau est gardée : hors-ligne, on
+    // resert la dernière version vue de CETTE page (/projects, /studio…), sinon
+    // l'accueil. (Avant, `caches.match(...) || caches.match('/')` ne retombait jamais
+    // sur le cache : une Promise est toujours « vraie », donc rien ne s'ouvrait.)
     event.respondWith(
       fetch(request)
         .then(response => {
-          if (response.ok) {
+          // Ne garde que les vraies pages : pas les redirections (ex. login), pas les erreurs.
+          if (response.ok && !response.redirected) {
             const clone = response.clone()
             caches.open(CACHE_NAME).then(cache => cache.put(request, clone))
           }
           return response
         })
-        .catch(() => caches.match(request) || caches.match('/'))
+        .catch(async () => {
+          const cached = await caches.match(request, { ignoreSearch: true })
+          return cached || (await caches.match('/')) || Response.error()
+        })
     )
   }
 })

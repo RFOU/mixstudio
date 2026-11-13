@@ -16,6 +16,8 @@ import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { createClient } from '@/lib/supabase/client'
 import { parseAnyLyrics } from '@/lib/lyrics/parseLyrics'
 import { getCachedAudio, putCachedAudio } from '@/lib/audio/audioCache'
+import { getSignedAudioUrl, loadProjectAux, isOffline, isProjectAlreadyLoaded } from '@/lib/offline/offlineManager'
+import { toast } from '@/components/ui/Toast'
 import type { Database } from '@/lib/supabase/types'
 
 type Project = Database['public']['Tables']['projects']['Row']
@@ -81,31 +83,6 @@ export function Studio() {
     const rows = tracks.filter(t => t.storage_path)
     const total = rows.length
 
-    /** URL signée : route serveur (tous rôles), repli client direct (admins). */
-    const getSignedUrl = async (storagePath: string, name: string): Promise<string | null> => {
-      const res = await fetch('/api/audio/signed-url', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storagePath }),
-      })
-      if (res.ok) {
-        const { signedUrl } = await res.json()
-        return signedUrl ?? null
-      }
-      let errMsg = res.statusText
-      try { const j = await res.json(); errMsg = j.error ?? errMsg } catch {}
-      console.warn(`Signed URL API (${res.status}) pour "${name}": ${errMsg} — fallback client`)
-      const { data, error } = await supabase.storage
-        .from('audio-files')
-        .createSignedUrl(storagePath, 3600)
-      if (error || !data?.signedUrl) {
-        console.error(`Fallback signed URL échoué pour "${name}":`, error?.message ?? 'no url')
-        return null
-      }
-      return data.signedUrl
-    }
-
     // Phase 1 — réseau EN PARALLÈLE (cache ou signed URL + téléchargement).
     // Le réseau est le poste le plus lent ; le paralléliser divise d'autant le
     // temps d'ouverture (avant : tout était séquentiel piste par piste).
@@ -123,7 +100,7 @@ export function Studio() {
             : null
 
           if (!data) {
-            const signedUrl = await getSignedUrl(storagePath, track.name)
+            const signedUrl = await getSignedAudioUrl(supabase, storagePath, track.name)
             if (!signedUrl) return null
             const res = await fetch(signedUrl)
             if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -189,12 +166,9 @@ export function Studio() {
       }
     })()
 
-    // Load lyrics
-    const { data: lyricsData } = await supabase
-      .from('lyrics')
-      .select('*')
-      .eq('project_id', projectId)
-      .single()
+    // Paroles, boucles, session : réseau, ou instantané local si hors-ligne.
+    const aux = await loadProjectAux(supabase, projectId)
+    const lyricsData = aux.lyrics
 
     if (lyricsData) {
       const { lines, format, voices } = parseAnyLyrics(lyricsData.content, lyricsData.format as 'lrc' | 'srt' | 'plain')
@@ -210,31 +184,16 @@ export function Studio() {
       setLyrics(null)
     }
 
-    // Load loop presets
-    const { data: presets } = await supabase
-      .from('loop_presets')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at')
-
-    if (presets && presets.length > 0) {
-      for (const p of presets) {
-        addLoopPreset({
-          id: p.id,
-          name: p.name,
-          startTime: Number(p.start_time),
-          endTime: Number(p.end_time),
-        })
-      }
+    for (const p of aux.loopPresets) {
+      addLoopPreset({
+        id: p.id,
+        name: p.name,
+        startTime: Number(p.start_time),
+        endTime: Number(p.end_time),
+      })
     }
 
-    // Load loop state from session
-    const { data: session } = await supabase
-      .from('project_sessions')
-      .select('loop_enabled, loop_start, loop_end')
-      .eq('project_id', projectId)
-      .single()
-
+    const session = aux.session
     if (session) {
       const start = Number(session.loop_start ?? 0)
       const end = Number(session.loop_end ?? 0)
@@ -243,6 +202,14 @@ export function Studio() {
         setLoopEnabled(session.loop_enabled ?? false)
         engine.setLoop(session.loop_enabled ?? false, start, end)
       }
+    }
+
+    if (loaded < total) {
+      toast.error(
+        isOffline()
+          ? `Hors-ligne : ${total - loaded} piste(s) non disponible(s) — téléchargez le morceau pour l’avoir hors-ligne`
+          : `${total - loaded} piste(s) n’ont pas pu être chargées`
+      )
     }
 
     setLoading(false)
@@ -270,6 +237,8 @@ export function Studio() {
 
   /** Used by ProjectsModal (in-studio project switcher) */
   const handleLoadProject = useCallback(async (project: Project, tracks: TrackDB[]) => {
+    // Même morceau déjà chargé et à jour : rien à recharger.
+    if (isProjectAlreadyLoaded(project.id, tracks)) return
     engine.stop()
     setIsPlaying(false)
     setCurrentTime(0)

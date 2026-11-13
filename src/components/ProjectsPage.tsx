@@ -1,17 +1,29 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Music2, FolderOpen, Plus, Trash2, Clock,
   LogOut, Play, ChevronRight, Loader2, ShieldCheck, MapPin, Building2, Check, ChevronDown,
+  CloudDownload, CheckCircle2, HardDrive, WifiOff,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAudioStore } from '@/store/audioStore'
 import { useShallow } from 'zustand/react/shallow'
 import { getAudioEngine } from '@/lib/audio/AudioEngine'
 import { AppNav } from '@/components/AppNav'
+import { StorageModal } from '@/components/StorageModal'
+import { toast } from '@/components/ui/Toast'
+import type { PendingTrackRow } from '@/store/audioStore'
+import {
+  isOffline, toPendingTrack, isProjectAlreadyLoaded, refreshProjectSnapshot,
+  downloadProjectForOffline, removeProjectOffline, getStorageReport,
+  requestPersistentStorage, formatBytes,
+} from '@/lib/offline/offlineManager'
+import {
+  getProjectSnapshot, listProjectSnapshots, saveUserMeta, getUserMeta, clearUserMeta,
+} from '@/lib/offline/projectSnapshot'
 import type { Database } from '@/lib/supabase/types'
 
 type Project = Database['public']['Tables']['projects']['Row']
@@ -37,6 +49,12 @@ export function ProjectsPage() {
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [togglingKey, setTogglingKey] = useState<string | null>(null)
   const [expandedCityPicker, setExpandedCityPicker] = useState<string | null>(null)
+  // Hors-ligne
+  const [online, setOnline] = useState(true)
+  const [offlineMode, setOfflineMode] = useState(false) // page chargée depuis les instantanés locaux
+  const [offlineInfo, setOfflineInfo] = useState<Record<string, { pinned: boolean; bytes: number }>>({})
+  const [downloading, setDownloading] = useState<Record<string, { done: number; total: number }>>({})
+  const [showStorage, setShowStorage] = useState(false)
 
   const {
     setProject, setPendingLoad, clearTracks,
@@ -48,14 +66,68 @@ export function ProjectsPage() {
 
   const engine = getAudioEngine()
 
+  const refreshOfflineInfo = useCallback(async () => {
+    const report = await getStorageReport()
+    const info: Record<string, { pinned: boolean; bytes: number }> = {}
+    for (const p of report.projects) {
+      if (p.projectId) info[p.projectId] = { pinned: p.pinned, bytes: p.bytes }
+    }
+    setOfflineInfo(info)
+  }, [])
+
+  // État réseau (bandeau + désactivation des actions qui demandent une connexion)
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine)
+    update()
+    window.addEventListener('online', update)
+    window.addEventListener('offline', update)
+    return () => {
+      window.removeEventListener('online', update)
+      window.removeEventListener('offline', update)
+    }
+  }, [])
+
   useEffect(() => {
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
+      // 1. Identification. Sans réseau, getUser() échoue : on s'appuie alors sur les
+      //    infos locales (rôle, id) enregistrées lors de la dernière connexion.
+      let user: { id: string; email?: string } | null = null
+      let networkFailed = isOffline()
+      if (!networkFailed) {
+        try {
+          const { data: { user: u }, error } = await supabase.auth.getUser()
+          if (error && (error.name === 'AuthRetryableFetchError' || /fetch|network/i.test(error.message))) {
+            networkFailed = true
+          } else {
+            user = u ? { id: u.id, email: u.email } : null
+          }
+        } catch {
+          networkFailed = true
+        }
+      }
+
+      if (networkFailed) {
+        const meta = await getUserMeta()
+        if (!meta) {
+          router.replace('/')
+          return
+        }
+        setOfflineMode(true)
+        setUser({ id: meta.userId, email: meta.email })
+        // Les fonctions d'administration demandent le réseau : on les masque.
+        setRole('viewer')
+        const snaps = await listProjectSnapshots()
+        setProjects(snaps.map(s => s.project))
+        await refreshOfflineInfo()
+        setLoading(false)
+        return
+      }
+
       if (!user) {
         router.replace('/')
         return
       }
-      setUser({ id: user.id, email: user.email })
+      setUser(user)
 
       // Récupérer le rôle et la ville
       const { data: profile } = await supabase
@@ -65,6 +137,7 @@ export function ProjectsPage() {
         .single()
       const userRole = (profile?.role ?? 'viewer') as Role
       setRole(userRole)
+      void saveUserMeta({ userId: user.id, email: user.email, role: userRole })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cityData = (profile as any)?.cities
       setUserCity(cityData ?? null)
@@ -90,10 +163,11 @@ export function ProjectsPage() {
         setProjectCityIds(map)
       }
 
+      await refreshOfflineInfo()
       setLoading(false)
     }
     init()
-  }, [supabase, router])
+  }, [supabase, router, refreshOfflineInfo])
 
   const reloadProjects = async () => {
     const { data } = await supabase
@@ -127,13 +201,36 @@ export function ProjectsPage() {
   const handleOpen = async (project: Project) => {
     setOpeningId(project.id)
 
-    const { data: tracks } = await supabase
-      .from('tracks')
-      .select('*')
-      .eq('project_id', project.id)
-      .order('position')
+    // 1. Liste des pistes : base de données, ou instantané local (hors-ligne / erreur réseau).
+    let rows: PendingTrackRow[] | null = null
+    if (!offlineMode && !isOffline()) {
+      const { data: tracks, error } = await supabase
+        .from('tracks')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('position')
+      if (!error) {
+        rows = (tracks ?? []).map(toPendingTrack)
+        // Met l'instantané à jour en arrière-plan (utile pour une ouverture hors-ligne ultérieure).
+        void refreshProjectSnapshot(supabase, project, tracks ?? [])
+      }
+    }
+    if (rows === null) {
+      const snap = await getProjectSnapshot(project.id)
+      if (!snap) {
+        toast.error('Ce morceau n’est pas disponible hors-ligne. Ouvrez-le une fois avec du réseau.')
+        setOpeningId(null)
+        return
+      }
+      rows = snap.tracks
+    }
 
-    const trackList: TrackDB[] = tracks || []
+    // 2. Déjà chargé et à jour : on revient simplement au studio, rien à recharger.
+    if (isProjectAlreadyLoaded(project.id, rows)) {
+      setOpeningId(null)
+      router.push('/studio')
+      return
+    }
 
     // Reset engine + store state
     engine.reset()
@@ -147,27 +244,50 @@ export function ProjectsPage() {
       projectId: project.id,
       projectName: project.name,
       bpm: project.bpm,
-      tracks: trackList.map(t => ({
-        id: t.id,
-        name: t.name,
-        position: t.position,
-        volume: t.volume,
-        muted: t.muted,
-        soloed: t.soloed,
-        color: t.color,
-        storage_path: t.storage_path,
-        file_name: t.file_name,
-        file_size: t.file_size,
-        duration: t.duration,
-        sample_rate: t.sample_rate,
-      })),
+      tracks: rows,
     })
 
     // Navigate immediately — Studio will show the loading modal and load audio there
     router.push('/studio')
   }
 
+  /** « Disponible hors-ligne » : télécharge l'audio du morceau et le garde en permanence. */
+  const handleDownloadOffline = async (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation()
+    if (downloading[project.id]) return
+    setDownloading(d => ({ ...d, [project.id]: { done: 0, total: 0 } }))
+    // Demande au navigateur de protéger le stockage (geste utilisateur requis par Safari).
+    void requestPersistentStorage()
+    try {
+      const { data: tracks, error } = await supabase
+        .from('tracks').select('*').eq('project_id', project.id).order('position')
+      if (error) throw new Error(error.message)
+      await downloadProjectForOffline(supabase, project, tracks ?? [], p =>
+        setDownloading(d => ({ ...d, [project.id]: p }))
+      )
+      await refreshOfflineInfo()
+      toast.success(`« ${project.name} » est disponible hors-ligne`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Téléchargement impossible')
+    } finally {
+      setDownloading(d => {
+        const { [project.id]: _done, ...rest } = d
+        void _done
+        return rest
+      })
+      await refreshOfflineInfo()
+    }
+  }
+
+  const handleRemoveOffline = async (e: React.MouseEvent, project: Project) => {
+    e.stopPropagation()
+    if (!confirm(`Retirer « ${project.name} » du stockage hors-ligne ?`)) return
+    await removeProjectOffline(project.id)
+    await refreshOfflineInfo()
+  }
+
   const handleSignOut = async () => {
+    await clearUserMeta() // sans session, plus d'accès hors-ligne
     await supabase.auth.signOut()
     router.replace('/')
   }
@@ -238,6 +358,15 @@ export function ProjectsPage() {
           <span className="hidden sm:inline">Studio</span>
         </Link>
         <button
+          onClick={() => setShowStorage(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border"
+          style={{ borderColor: 'var(--border)', color: 'var(--text-muted)', background: 'var(--surface)' }}
+          title="Stockage hors-ligne"
+        >
+          <HardDrive size={11} />
+          <span className="hidden sm:inline">Stockage</span>
+        </button>
+        <button
           onClick={handleSignOut}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
           style={{ color: 'var(--text-muted)' }}
@@ -246,6 +375,16 @@ export function ProjectsPage() {
           Déconnexion
         </button>
       </AppNav>
+
+      {(!online || offlineMode) && (
+        <div
+          className="flex items-center justify-center gap-2 px-4 py-2 text-xs"
+          style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b', borderBottom: '1px solid rgba(245,158,11,0.3)' }}
+        >
+          <WifiOff size={12} />
+          Hors-ligne — seuls les morceaux téléchargés peuvent être ouverts
+        </div>
+      )}
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
 
@@ -378,6 +517,35 @@ export function ProjectsPage() {
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {/* Disponible hors-ligne */}
+                      {(() => {
+                        const info = offlineInfo[project.id]
+                        const dl = downloading[project.id]
+                        const pinned = !!info?.pinned
+                        const disabled = !!dl || (!pinned && !online)
+                        return (
+                          <button
+                            onClick={(e) => (pinned ? handleRemoveOffline(e, project) : handleDownloadOffline(e, project))}
+                            disabled={disabled}
+                            className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs border disabled:opacity-40"
+                            style={{
+                              borderColor: pinned ? 'rgba(34,197,94,0.4)' : 'var(--border)',
+                              color: pinned ? '#22c55e' : 'var(--text-muted)',
+                              background: pinned ? 'rgba(34,197,94,0.08)' : 'var(--surface)',
+                            }}
+                            title={pinned ? 'Disponible hors-ligne — toucher pour retirer' : 'Télécharger pour l’utiliser hors-ligne'}
+                          >
+                            {dl ? (
+                              <><Loader2 size={11} className="animate-spin" />{dl.total > 0 ? `${dl.done}/${dl.total}` : ''}</>
+                            ) : pinned ? (
+                              <><CheckCircle2 size={11} /><span className="hidden sm:inline">{formatBytes(info.bytes)}</span></>
+                            ) : (
+                              <><CloudDownload size={11} /><span className="hidden sm:inline">Hors-ligne</span></>
+                            )}
+                          </button>
+                        )
+                      })()}
+
                       {/* Bouton sélecteur de villes (admin) */}
                       {role === 'admin' && (
                         <button
@@ -478,6 +646,11 @@ export function ProjectsPage() {
           </div>
         )}
       </div>
+      {showStorage && (
+        <StorageModal
+          onClose={() => { setShowStorage(false); void refreshOfflineInfo() }}
+        />
+      )}
     </div>
   )
 }
